@@ -23,6 +23,8 @@
 - Длина звучания: короче или вплоть до бесконечной педали.
 - Шесть залов: от комнаты до собора, с настройкой размера, задержки отражений и окраски.
 - Эффекты: объём (ширина стерео), компрессор, эхо.
+- **«Подобрать звук»:** приложение разбирает игру (темп, громкость, педаль, регистр) и само выставляет зал, длину и окраску. Можно вернуть как было.
+- **Kontakt и другие VST3-инструменты:** записи и видео могут звучать через вашу библиотеку Kontakt, например Noire. Инструмент выбирается в окне Kontakt прямо из Fermatta. Нужен Python 3.9+.
 - Яркость звука, сила игры, отдельная громкость левой и правой руки, тональность, темп.
 - Резонанс струн при нажатой педали и шумы механики, если они есть у рояля.
 
@@ -31,7 +33,7 @@
 - Фон: градиент, цвет, картинка или видео.
 - **Видеостудия:** готовые стили («Огонь и лёд», «Неон», «Сияние», «Золото», «Сакура», «Классика») и вкладки Фон, Ноты, Клавиши, Эффекты, Камера, Звук.
 - Ноты-капсулы со светящейся серединкой, неон и ещё четыре формы; ноты могут менять цвет у клавиатуры.
-- Огненная или лазерная линия над клавишами, вспышки, угольки, искры, пыль, облака дыма, свечение клавиш.
+- Картинка собирается на видеокарте: настоящее свечение, живой огонь или лазер над клавишами, вспышки, тысячи угольков и искр, клубящийся дым.
 - 3D-наклон, сколько секунд нот видно вперёд, высоту клавиатуры можно тянуть мышкой прямо на превью.
 - Видео в форматах 9:16, 16:9 и 1:1, до 4K и 60 кадров в секунду, кодируется видеокартой.
 
@@ -66,7 +68,8 @@ npm start
 
 - Electron. Звуковой движок написан на AudioWorklet и читает сэмплы из общей памяти, поэтому живое воспроизведение и экспорт звучат одинаково.
 - Сэмплы роялей переводятся в «пакет» (16-бит, 48 кГц) с помощью ffmpeg, разбор SFZ свой.
-- Падающие ноты рисуются одной и той же функцией в предпросмотре и в видео. Кодирование через WebCodecs (H.264), сборка через ffmpeg.
+- Падающие ноты: слои рисуются на Canvas 2D, свечение, огонь, дым и частицы собираются в WebGL2. Предпросмотр и видео рисуются одним и тем же кодом. Кодирование через WebCodecs (H.264), сборка через ffmpeg.
+- Плагины VST3: [Pedalboard](https://github.com/spotify/pedalboard) (Spotify) в отдельном процессе Python.
 - Ноты по звуку: модель Kong et al. (ByteDance) через ONNX Runtime.
 - Ноты с листа: [Audiveris](https://github.com/Audiveris/audiveris).
 - Нотный стан: [OpenSheetMusicDisplay](https://opensheetmusicdisplay.org).
@@ -80,7 +83,8 @@ npm start
 Fermatta records your digital piano over USB and plays it back on free concert-grand sample libraries. It also gives you:
 - punch-in recording from any point (replace or overlay);
 - a video studio with presets, glowing capsule notes, fire/laser hit lines, embers, smoke, 3D tilt;
-- reverb, stereo width, compressor and echo;
+- reverb, stereo width, compressor and echo, plus a "pick the sound" button that analyses the playing;
+- playback and export through Kontakt (e.g. Noire) or any VST3 instrument, via a Pedalboard-based host;
 - falling-notes videos (9:16, 16:9 and 1:1, up to 4K60);
 - an FL Studio-style piano roll with tempo detection and timing alignment;
 - comparison with a score that finds and fixes wrong notes;

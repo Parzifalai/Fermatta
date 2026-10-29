@@ -60,8 +60,9 @@ export function mountTransport(root, app) {
     back.disabled = fwd.disabled = recording || !s.take;
     seek.disabled = recording || !s.take;
     const p = s.pianos.find((x) => x.id === s.settings?.pianoId);
-    pianoName.textContent = p ? p.name.split(' — ')[1] || p.name : '—';
-    pianoSub.textContent = s.pianoLoading !== null ? `${t('sound.loading')} ${Math.round(s.pianoLoading * 100)}%` : p ? p.piano : t('err.noPiano');
+    const vst = s.settings?.soundSource === 'vst';
+    pianoName.textContent = vst ? 'Kontakt' : p ? p.name.split(' — ')[1] || p.name : '—';
+    pianoSub.textContent = vst ? t('vst.sub') : s.pianoLoading !== null ? `${t('sound.loading')} ${Math.round(s.pianoLoading * 100)}%` : p ? p.piano : t('err.noPiano');
     vol.title = t('sound.volume');
     if (s.punch) title.textContent = t('punch.listen', { time: fmtTime(s.punch.mark) });
     else if (recording) title.textContent = s.mode === 'paused' ? t('rec.paused') : app.recorder.t0 === null ? t('rec.waiting') : t('rec.recording');

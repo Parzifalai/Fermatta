@@ -23,3 +23,9 @@ Fermatta's own code is MIT-licensed. It uses, bundles or downloads on demand:
 | Osiris Piano | Versilian Studios & Karoryfer Samples | CC0 |
 | Piano transcription model `kong_note_pedal.onnx` | Q. Kong, B. Li, X. Song, Y. Wan, Y. Wang — “High-resolution Piano Transcription with Pedals by Regressing Onset and Offset Times” (2020); ONNX conversion by Vedat Ozkan | CC BY 4.0 |
 | [Audiveris](https://github.com/Audiveris/audiveris) 5.11 (sheet music recognition), run as a separate program | Hervé Bitteur and contributors | AGPL-3.0 |
+
+## Pedalboard
+https://github.com/spotify/pedalboard — GPL-3.0. Downloaded on first use into the plugin host environment (not bundled); runs as a separate process.
+
+## mido
+https://github.com/mido/mido — MIT. Downloaded on first use with Pedalboard.

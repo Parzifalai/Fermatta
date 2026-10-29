@@ -6,6 +6,7 @@ import { t } from '../i18n.js';
 import { store } from '../store.js';
 import { toast } from '../ui/toast.js';
 import { TilesRenderer } from './tiles-render.js';
+import { TilesComposer } from './gl-composer.js';
 import { wavFromBuffer } from '../audio/engine.js';
 
 const fm = window.fm;
@@ -123,13 +124,17 @@ export async function exportVideo(app, { aspect, short, fps, out }) {
     const br = bitrate(W, H, fps);
     const config = await pickCodec(W, H, fps, br);
     if (!config) throw new Error(t('vx.unsupported'));
-    const renderer = new TilesRenderer();
-    renderer.setTake(take);
-    renderer.media = app.tilesRenderer?.media || { image: null, video: null };
+    const media = app.tilesRenderer?.media || { image: null, video: null };
+    // colour frames come from the GPU composer, the matte from the plain 2D renderer
+    const composer = new TilesComposer(new OffscreenCanvas(W, H), { preserve: true });
+    composer.renderer.setTake(take);
+    composer.renderer.media = media;
+    const matteRenderer = new TilesRenderer();
+    matteRenderer.setTake(take);
     const passes = [{ matte: false, file: await fm.fs.tempFile(`${take.id}-color.mp4`) }];
     if (withBgVideo) passes.push({ matte: true, file: await fm.fs.tempFile(`${take.id}-matte.mp4`) });
-    const canvas = new OffscreenCanvas(W, H);
-    const g = canvas.getContext('2d', { alpha: false });
+    const matteCanvas = new OffscreenCanvas(W, H);
+    const g = matteCanvas.getContext('2d', { alpha: false });
     const passStyle = withBgVideo ? { ...style, bg: { ...style.bg, type: 'solid', a: '#000000' } } : style;
     const encoders = [];
     for (const pass of passes) {
@@ -152,7 +157,9 @@ export async function exportVideo(app, { aspect, short, fps, out }) {
       if (cancelled) throw new Error('cancelled');
       const time = (i / fps - L) * rate;
       for (const e of encoders) {
-        renderer.draw(g, W, H, time, passStyle, { matte: e.pass.matte });
+        let canvas;
+        if (e.pass.matte) { matteRenderer.draw(g, W, H, time, passStyle, { matte: true }); canvas = matteCanvas; }
+        else { composer.render(W, H, time, passStyle); canvas = composer.canvas; }
         const frame = new VideoFrame(canvas, { timestamp: Math.round((i * 1e6) / fps), duration: Math.round(1e6 / fps) });
         e.enc.encode(frame, { keyFrame: i % (fps * 2) === 0 });
         frame.close();

@@ -10,6 +10,7 @@ const pianos = require('./pianos');
 const media = require('./media');
 const transcriber = require('./transcribe');
 const omr = require('./omr');
+const vst = require('./vsthost');
 
 const ROOT = path.join(__dirname, '..', '..');
 
@@ -198,6 +199,18 @@ function registerIpc() {
   ipcMain.handle('transcribe:file', (_e, file) => transcriber.transcribe(file, settings, (p) => send('transcribe:progress', p)));
   ipcMain.handle('omr:recognize', (_e, file) => omr.recognize(file, settings, (p) => send('omr:progress', p)));
   ipcMain.handle('transcribe:ready', () => transcriber.modelReady(settings));
+  ipcMain.handle('vst:status', () => vst.status(settings));
+  ipcMain.handle('vst:setup', () => vst.setup(settings, (p) => send('vst:progress', p)));
+  ipcMain.handle('vst:load', () => vst.load(settings));
+  ipcMain.handle('vst:editor', () => vst.editor(settings));
+  ipcMain.handle('vst:render', (_e, events, duration) => vst.render(settings, events, duration));
+  ipcMain.handle('vst:pick', async () => {
+    const r = await dialog.showOpenDialog({ title: 'VST3', properties: ['openFile', 'openDirectory'], filters: [{ name: 'VST3', extensions: ['vst3'] }], defaultPath: path.dirname(vst.findKontakt() || path.join(process.env.CommonProgramFiles || 'C:/Program Files/Common Files', 'VST3', 'x')) });
+    if (r.canceled || !r.filePaths[0]) return null;
+    vst.stop();
+    settings.set({ vstPlugin: r.filePaths[0] });
+    return r.filePaths[0];
+  });
 
   ipcMain.handle('media:mp3', (_e, wav, out, meta) => media.toMp3(wav, out, meta));
   ipcMain.handle('media:mux', (_e, args) => media.mux(args, (p) => send('media:progress', p)));

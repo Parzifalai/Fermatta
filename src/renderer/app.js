@@ -7,6 +7,8 @@ import { Engine, DEFAULT_SOUND, wavFromBuffer } from './audio/engine.js';
 import { MidiInput } from './core/midi-input.js';
 import { Recorder, newId, finalize, emptyTake } from './core/take.js';
 import { assignHands } from './core/hands.js';
+import { suggestSound } from './audio/auto-sound.js';
+import { vstSource } from './audio/external.js';
 import { parseMidi, writeMidi } from './core/smf.js';
 import { KeyboardStrip } from './ui/keyboard.js';
 import { mountTransport } from './ui/transport.js';
@@ -68,6 +70,8 @@ class App {
     await this.midi.init(settings.midiInput);
     if (store.state.takes.length) this.openTake(store.state.takes[0].id);
     this.loadActivePiano();
+    // Kontakt takes about a minute to start: warm it up in the background
+    if (settings.soundSource === 'vst') { this.engine.setExternal(vstSource()); fm.vst.load().catch(() => {}); }
     this.loop();
     document.dispatchEvent(new CustomEvent('fermatta:ready', { detail: this }));
   }
@@ -286,6 +290,77 @@ class App {
     this.soundSave = setTimeout(() => this.updateSettings({ sound: this.engine.sound }), 400);
   }
 
+  // Runs fn (playback or render); when an outside instrument still has to
+  // render the take, shows progress meanwhile. Returns false on failure.
+  async withExternal(fn) {
+    const e = this.engine;
+    const take = store.state.take;
+    const slow = e.external && take && !e.externalReady(take);
+    const b = slow ? this.busy(t('vst.rendering')) : null;
+    b?.set(0.5, t('vst.renderingHint'));
+    try {
+      await fn();
+      return true;
+    } catch (err) {
+      toast(t('vst.failed', { e: err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') }), { error: true, ms: 9000 });
+      return false;
+    } finally {
+      b?.done();
+    }
+  }
+
+  // ---------- Kontakt and other VST3 instruments ----------
+  async vstSetup() {
+    const b = this.busy(t('vst.setupTitle'));
+    const off = fm.vst.onProgress((p) => b.set(p.stage === 'venv' ? 0.15 : 0.5, t('vst.stage.' + p.stage)));
+    try {
+      await fm.vst.setup();
+      return true;
+    } catch (e) {
+      toast(e.message.includes('PYTHON_MISSING') ? t('vst.noPython') : t('vst.failed', { e: e.message }), { error: true, ms: 12000 });
+      return false;
+    } finally { off(); b.done(); }
+  }
+
+  // Opens the instrument's own window (Kontakt) to choose a library such as Noire.
+  async vstChoose() {
+    const st = await fm.vst.status();
+    if (!st.plugin) { toast(t('vst.noKontakt'), { error: true, ms: 9000 }); return; }
+    if (!st.envReady && !(await this.vstSetup())) return;
+    const b = this.busy(t('vst.opening'));
+    b.set(0.4, t('vst.openingHint'));
+    try {
+      await fm.vst.load();
+      b.set(0.7, t('vst.windowHint'));
+      const r = await fm.vst.editor();
+      this.engine.xcache = null;
+      toast(r.peak > 1e-4 ? t('vst.ready') : t('vst.silent'), { error: !(r.peak > 1e-4), ms: 9000 });
+      store.set({ vst: await fm.vst.status() });
+    } catch (e) {
+      toast(t('vst.failed', { e: e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') }), { error: true, ms: 9000 });
+    } finally { b.done(); }
+  }
+
+  async useVst(on) {
+    this.stopPlayback();
+    this.engine.setExternal(on ? vstSource() : null);
+    if (on) fm.vst.load().catch(() => {});
+    await this.updateSettings({ soundSource: on ? 'vst' : 'builtin' });
+    store.set({ pianos: [...store.state.pianos] });
+  }
+
+  // Analyses the open take and applies a matching sound, with an undo button.
+  autoSound() {
+    const take = store.state.take;
+    if (!take) return toast(t('auto.noTake'));
+    const r = suggestSound(take);
+    if (!r) return toast(t('auto.tooShort'));
+    const before = { ...this.engine.sound };
+    this.setSound(r.sound);
+    toast(r.text, { action: t('auto.undo'), onAction: () => this.setSound(before), ms: 12000 });
+    return r;
+  }
+
   // ---------- live input ----------
   liveHand(key) { return key < 60 ? 0 : 1; }
 
@@ -330,7 +405,7 @@ class App {
   async startPunch() {
     const s = store.state;
     if (!s.take || s.mode === 'recording' || s.mode === 'paused') return;
-    if (!this.engine.chain) {
+    if (!this.engine.chain && !this.engine.external) {
       toast(t('sound.needPiano'), { action: t('sound.install'), onAction: () => this.go('sound') });
       return;
     }
@@ -340,7 +415,7 @@ class App {
     const from = Math.max(0, mark - pre);
     if (s.mode === 'playing') this.engine.stop(false);
     await this.engine.ensureContext();
-    this.engine.play(s.take, from, mode === 'replace' ? { to: mark } : {});
+    if (!(await this.withExternal(() => this.engine.play(s.take, from, mode === 'replace' ? { to: mark } : {})))) return;
     this.punch = { take: s.take, mark, mode, notes: [], pedal: [], open: new Map(), pedalBefore: 0, rate: this.engine.sound.tempo || 1 };
     store.set({ mode: 'recording', punch: { mark, mode } });
   }
@@ -457,13 +532,13 @@ class App {
     if (s.mode === 'recording' || s.mode === 'paused') return;
     if (s.mode === 'playing') return this.pausePlayback();
     if (!s.take) return;
-    if (!this.engine.chain) {
+    if (!this.engine.chain && !this.engine.external) {
       toast(t('sound.needPiano'), { action: t('sound.install'), onAction: () => this.go('sound') });
       return;
     }
     await this.engine.ensureContext();
     if (this.pausedAt >= s.take.duration - 0.05) this.pausedAt = 0;
-    this.engine.play(s.take, this.pausedAt);
+    if (!(await this.withExternal(() => this.engine.play(s.take, this.pausedAt)))) return;
     store.set({ mode: 'playing' });
   }
 
@@ -749,7 +824,7 @@ class App {
 
   async renderWav(onProgress) {
     const take = store.state.take;
-    if (!this.engine.pack) throw new Error(t('err.noPiano'));
+    if (!this.engine.pack && !this.engine.external) throw new Error(t('err.noPiano'));
     const buf = await this.engine.render(take, { onProgress });
     const wav = wavFromBuffer(buf);
     const file = await fm.fs.tempFile(`${take.id}.wav`);

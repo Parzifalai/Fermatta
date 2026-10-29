@@ -1,5 +1,15 @@
 // Sound sliders shared by the Sound screen and the video studio.
 import { h, paintRange } from './dom.js';
+
+const SPARK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>';
+
+// "Pick the sound" button: analyses the open take and sets matching sound.
+export function autoBtn(app) {
+  const b = h('button', { class: 'btn auto-btn', title: t('auto.hint'), onclick: () => app.autoSound() });
+  b.innerHTML = SPARK;
+  b.append(t('auto.button'));
+  return b;
+}
 import { t } from '../i18n.js';
 import { store } from '../store.js';
 import { DEFAULT_SOUND, HALLS } from '../audio/engine.js';

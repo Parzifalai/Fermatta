@@ -2,9 +2,10 @@
 import { h, icon, paintRange } from './dom.js';
 import { t } from '../i18n.js';
 import { store } from '../store.js';
-import { TilesRenderer, DEFAULT_VISUAL, PALETTES, BACKGROUNDS, PRESETS, applyPreset, keyboardHeight, demoTake } from '../visual/tiles-render.js';
+import { DEFAULT_VISUAL, PALETTES, BACKGROUNDS, PRESETS, applyPreset, keyboardHeight, demoTake } from '../visual/tiles-render.js';
+import { TilesComposer, renderThumb } from '../visual/gl-composer.js';
 import { openVideoExport } from '../visual/video-export.js';
-import { soundUI, effectsBlock } from './sound-controls.js';
+import { soundUI, effectsBlock, autoBtn } from './sound-controls.js';
 
 export const ASPECTS = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1 };
 const TABS = ['bg', 'notes', 'keys', 'fx', 'camera', 'sound'];
@@ -15,13 +16,15 @@ export function visualOf(settings) {
 }
 
 export function mountTilesPage(root, app) {
-  const renderer = new TilesRenderer();
-  app.tilesRenderer = renderer;
   let aspect = store.state.settings.tilesAspect || '16:9';
   let tab = store.state.settings.studioTab || 'bg';
   const canvas = h('canvas', { class: 'tiles-canvas' });
   const handle = h('div', { class: 'hit-handle', title: t('studio.drag'), role: 'separator', 'aria-orientation': 'horizontal' }, h('i'));
-  const frame = h('div', { class: 'tiles-frame' }, canvas, handle);
+  const emptyNote = h('div', { class: 'tiles-empty' }, t('export.pickTake'));
+  const frame = h('div', { class: 'tiles-frame' }, canvas, handle, emptyNote);
+  const composer = new TilesComposer(canvas);
+  const renderer = composer.renderer;
+  app.tilesRenderer = renderer;
   const stage = h('div', { class: 'tiles-stage' }, frame);
   const aspectSeg = h('div', { class: 'seg' }, Object.keys(ASPECTS).map((a) => h('button', { 'data-a': a, onclick: () => setAspect(a) }, a)));
   const fsBtn = h('button', { class: 'btn quiet', onclick: () => frame.requestFullscreen?.() }, t('tiles.fullscreen'));
@@ -107,12 +110,9 @@ export function mountTilesPage(root, app) {
     requestAnimationFrame(drawThumbs);
   }
   function drawThumbs() {
-    const r = new TilesRenderer();
-    r.setTake(demo);
     for (const { c, id } of thumbs) {
-      const W = 320, H = 180;
-      c.width = W; c.height = H;
-      r.draw(c.getContext('2d'), W, H, 4.35, { ...applyPreset(DEFAULT_VISUAL, id), range: 'auto', speed: 2.6, keyHeight: 0.2 });
+      c.width = 320; c.height = 180;
+      renderThumb(c, demo, { ...applyPreset(DEFAULT_VISUAL, id), range: 'auto', speed: 2.6, keyHeight: 0.2 }, 4.35);
     }
   }
   function syncPresets() {
@@ -236,7 +236,7 @@ export function mountTilesPage(root, app) {
       sec(t('tiles.background'), row(t('tiles.guides'), toggle('guides'))),
     ],
     sound: () => [
-      h('div', { class: 'tp-sound' }, ui.slider('volume'), ...effectsBlock(ui)),
+      h('div', { class: 'tp-sound' }, autoBtn(app), ui.slider('volume'), ...effectsBlock(ui)),
     ],
   };
 
@@ -299,22 +299,15 @@ export function mountTilesPage(root, app) {
   function tick() {
     const take = store.state.take;
     if (renderer.take !== take) renderer.setTake(take);
+    emptyNote.hidden = !!take;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const W = Math.round(canvas.clientWidth * dpr), H = Math.round(canvas.clientHeight * dpr);
     if (!W || !H) return;
-    if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
-    const g = canvas.getContext('2d');
     const pos = take ? app.position() : 0;
     // before playback starts, show the notes about to fall in
     const time = take && store.state.mode !== 'playing' && pos === 0 ? Math.min(0, (take.notes[0]?.t ?? 0) - style.speed * 0.6) : pos;
-    renderer.draw(g, W, H, time, style);
+    composer.render(W, H, time, style);
     handle.style.top = `${(1 - keyboardHeight(W, H, style.keyHeight) / H) * 100}%`;
-    if (!take) {
-      g.fillStyle = 'rgba(236,229,211,.7)';
-      g.font = `500 ${Math.round(H * 0.035)}px Manrope`;
-      g.textAlign = 'center';
-      g.fillText(t('export.pickTake'), W / 2, H * 0.42);
-    }
   }
 
   buildPresets();

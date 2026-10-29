@@ -30,12 +30,16 @@ export const DEFAULT_SOUND = {
 
 // Builds the same chain inside any (live or offline) context:
 // piano → tone → compressor → (dry + hall + echo) → stereo width → volume → limiter
+// Without a pack the chain has no piano and plays ready-made audio (Kontakt) fed into chain.input.
 async function buildChain(ctx, pack, sound) {
-  await ctx.audioWorklet.addModule(WORKLET);
-  const node = new AudioWorkletNode(ctx, 'fermatta-piano', { numberOfInputs: 0, outputChannelCount: [2] });
-  const ready = waitFor(node.port, 'ready');
-  node.port.postMessage({ type: 'init', sab: pack.sab, meta: pack.meta });
-  await ready;
+  let node = null;
+  if (pack) {
+    await ctx.audioWorklet.addModule(WORKLET);
+    node = new AudioWorkletNode(ctx, 'fermatta-piano', { numberOfInputs: 0, outputChannelCount: [2] });
+    const ready = waitFor(node.port, 'ready');
+    node.port.postMessage({ type: 'init', sab: pack.sab, meta: pack.meta });
+    await ready;
+  }
   const gain = (v = 1) => { const g = ctx.createGain(); g.gain.value = v; return g; };
   const low = ctx.createBiquadFilter();
   low.type = 'lowshelf'; low.frequency.value = 220;
@@ -65,7 +69,8 @@ async function buildChain(ctx, pack, sound) {
   limiter.threshold.value = -1.5; limiter.knee.value = 0; limiter.ratio.value = 20;
   limiter.attack.value = 0.002; limiter.release.value = 0.12;
 
-  node.connect(low).connect(high).connect(comp).connect(makeup);
+  if (node) node.connect(low);
+  low.connect(high).connect(comp).connect(makeup);
   makeup.connect(dry).connect(bus);
   for (const c of convs) { makeup.connect(c.conv).connect(c.out).connect(wet); }
   wet.connect(bus);
@@ -82,7 +87,7 @@ async function buildChain(ctx, pack, sound) {
   split.connect(wRR, 1).connect(merge, 0, 1);
   merge.connect(master).connect(limiter).connect(ctx.destination);
   const chain = {
-    ctx, node, low, high, comp, makeup, dry, convs, active: 0, irKey: null, wet,
+    ctx, node, input: low, low, high, comp, makeup, dry, convs, active: 0, irKey: null, wet,
     echoSend, dl, dr, fbL, fbR, wLL, wRL, wLR, wRR, master,
     offline: typeof OfflineAudioContext !== 'undefined' && ctx instanceof OfflineAudioContext,
   };
@@ -146,7 +151,7 @@ function applySound(chain, s) {
   const a = (1 + w) / 2, b = (1 - w) / 2;
   set(chain.wLL.gain, a); set(chain.wRR.gain, a);
   set(chain.wRL.gain, b); set(chain.wLR.gain, b);
-  chain.node.port.postMessage({
+  chain.node?.port.postMessage({
     type: 'params',
     params: {
       length: s.length, release: s.release, brightness: s.brightness, sensitivity: s.sensitivity,
@@ -240,6 +245,45 @@ export class Engine {
   setSound(patch) {
     this.sound = { ...this.sound, ...patch };
     if (this.chain) applySound(this.chain, this.sound);
+    if (this.xchain) applySound(this.xchain, this.sound);
+  }
+
+  // Another instrument (Kontakt…) renders whole takes; the engine plays the
+  // result through the same tone, hall and effects. source.render(events, seconds) → AudioBuffer.
+  setExternal(source) {
+    this.stop();
+    this.external = source;
+    this.xcache = null;
+  }
+
+  // Events in the plugin host format, with transpose and hand volumes applied.
+  externalEvents(take, { from = 0, to = Infinity, rate = 1 } = {}) {
+    const s = this.sound;
+    const ev = takeEvents(take, { from, to, rate });
+    return ev.map((e) => {
+      if (e.kind === 'cc') return [e.t, 'cc', e.cc, e.value];
+      const key = Math.max(0, Math.min(127, e.key + (s.transpose || 0)));
+      if (e.kind === 'off') return [e.t, 'off', key, 0];
+      const hv = e.hand === 0 ? s.leftVolume : s.rightVolume;
+      return [e.t, 'on', key, Math.round(Math.max(1, Math.min(127, e.vel * Math.pow(hv ?? 1, 0.5))))];
+    });
+  }
+
+  externalKey(take, rate = this.sound.tempo || 1) {
+    const s = this.sound;
+    return `${take.id}|${take.modified || take.created}|${rate}|${s.transpose}|${s.leftVolume}|${s.rightVolume}`;
+  }
+
+  externalReady(take) { return this.xcache?.key === this.externalKey(take); }
+
+  async externalBuffer(take, rate) {
+    const key = this.externalKey(take, rate);
+    if (this.xcache?.key === key) return this.xcache.buffer;
+    const events = this.externalEvents(take, { rate });
+    const seconds = take.duration / rate + 4;
+    const buffer = await this.external.render(events, seconds, this.ctx);
+    this.xcache = { key, buffer };
+    return buffer;
   }
 
   // ---- live input ----
@@ -251,6 +295,7 @@ export class Engine {
   // ---- transport ----
   // `to` plays only up to that moment and lifts the pedal there (used by punch-in).
   play(take, from = 0, { to = Infinity } = {}) {
+    if (this.external) return this.playExternal(take, from, to);
     if (!this.chain) return;
     this.stop(false);
     const rate = this.sound.tempo || 1;
@@ -263,7 +308,24 @@ export class Engine {
     this.emit({ type: 'play' });
   }
 
+  async playExternal(take, from, to) {
+    this.stop(false);
+    const rate = this.sound.tempo || 1;
+    const buffer = await this.externalBuffer(take, rate);
+    if (!this.xchain) this.xchain = await buildChain(this.ctx, null, this.sound);
+    const src = this.ctx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(this.xchain.input);
+    const t0 = this.ctx.currentTime + 0.06;
+    const offset = from / rate;
+    src.start(t0, offset, Number.isFinite(to) ? Math.max(0, (to - from) / rate + 0.6) : undefined);
+    this.source = src;
+    this.playing = { take, from, t0, rate };
+    this.emit({ type: 'play' });
+  }
+
   stop(emit = true) {
+    if (this.source) { try { this.source.stop(); } catch { /* not started */ } this.source = null; }
     if (this.chain) this.chain.node.port.postMessage({ type: 'stop' });
     const was = this.playing;
     this.playing = null;
@@ -280,11 +342,21 @@ export class Engine {
 
   // ---- export ----
   async render(take, { from = 0, to, tail = 4, onProgress } = {}) {
-    if (!this.pack) throw new Error('no piano');
+    if (!this.pack && !this.external) throw new Error('no piano');
     const rate = this.sound.tempo || 1;
     const end = to ?? take.duration;
     const seconds = (end - from) / rate + tail;
     const ctx = new OfflineAudioContext(2, Math.ceil(seconds * RATE), RATE);
+    if (this.external) {
+      await this.ensureContext();
+      const buffer = await this.externalBuffer(take, rate);
+      const chain = await buildChain(ctx, null, this.sound);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(chain.input);
+      src.start(0, from / rate);
+      return ctx.startRendering();
+    }
     const chain = await buildChain(ctx, this.pack, this.sound);
     chain.node.port.postMessage({ type: 'events', events: takeEvents(take, { from, to: end, rate }) });
     await sync(chain.node.port);

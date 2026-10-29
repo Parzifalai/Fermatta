@@ -1,6 +1,6 @@
 // "Sound": choose and download pianos; shape the tone.
 import { h, icon } from './dom.js';
-import { soundUI, effectsBlock } from './sound-controls.js';
+import { soundUI, effectsBlock, autoBtn } from './sound-controls.js';
 import { t, getLang } from '../i18n.js';
 import { store } from '../store.js';
 import { DEFAULT_SOUND } from '../audio/engine.js';
@@ -8,12 +8,33 @@ import { DEFAULT_SOUND } from '../audio/engine.js';
 export function mountSoundPage(root, app) {
   const list = h('div');
   const customBtn = h('button', { class: 'btn quiet', onclick: () => app.addCustomPiano() }, icon('plus'), t('sound.custom'));
-  const pianos = h('section', { class: 'pianos glass' }, h('h2', {}, t('sound.pianos')), list, h('div', { style: { marginTop: '14px' } }, customBtn));
+  const vstBox = h('div', { class: 'vst-box' });
+  const pianos = h('section', { class: 'pianos glass' }, h('h2', {}, t('sound.pianos')), vstBox, list, h('div', { style: { marginTop: '14px' } }, customBtn));
+
+  // Kontakt (Noire and other libraries) or any VST3 instrument
+  async function renderVst() {
+    const st = store.state.vst || (await window.fm.vst.status());
+    const on = store.state.settings.soundSource === 'vst';
+    const name = st.plugin ? st.plugin.split(/[\\/]/).pop().replace(/\.vst3$/i, '') : t('vst.none');
+    vstBox.classList.toggle('active', on);
+    vstBox.replaceChildren(
+      h('div', { class: 'vst-head' },
+        h('div', {}, h('div', { class: 'pname' }, name), h('div', { class: 'pdesc' }, t('vst.desc'))),
+        on ? h('span', { class: 'muted' }, t('sound.active')) : null),
+      h('div', { class: 'vst-actions' },
+        h('button', { class: 'btn', disabled: !st.plugin, onclick: () => app.vstChoose().then(renderVst) }, t(st.hasState ? 'vst.change' : 'vst.choose')),
+        on
+          ? h('button', { class: 'btn quiet', onclick: () => app.useVst(false).then(renderVst) }, t('vst.off'))
+          : h('button', { class: 'btn primary', disabled: !st.hasState, title: st.hasState ? '' : t('vst.chooseFirst'), onclick: () => app.useVst(true).then(renderVst) }, t('vst.on')),
+        h('button', { class: 'btn quiet', onclick: async () => { if (await window.fm.vst.pick()) { store.set({ vst: await window.fm.vst.status() }); renderVst(); } } }, t('vst.other'))),
+      h('div', { class: 'pmeta' }, t(on ? 'vst.noteOn' : 'vst.note')));
+  }
+  renderVst();
 
   const ui = soundUI(app);
   const reset = h('button', { class: 'btn quiet', onclick: () => app.setSound({ ...DEFAULT_SOUND }) }, icon('restore'), t('sound.reset'));
   const controls = h('section', { class: 'controls glass' },
-    h('h2', {}, t('sound.controls')),
+    h('div', { class: 'ctl-top' }, h('h2', {}, t('sound.controls')), autoBtn(app)),
     ui.slider('volume'),
     ui.slider('length'),
     ui.slider('release'),
@@ -46,7 +67,7 @@ export function mountSoundPage(root, app) {
     const s = store.state;
     const lang = getLang();
     list.replaceChildren(...s.pianos.map((p) => {
-      const active = s.settings.pianoId === p.id && p.installed;
+      const active = s.settings.pianoId === p.id && p.installed && s.settings.soundSource !== 'vst';
       const busy = p.installing || (s.progress[p.id] && !['done', 'error', 'cancelled'].includes(s.progress[p.id].stage));
       let act;
       if (busy) {
@@ -71,6 +92,7 @@ export function mountSoundPage(root, app) {
 
   store.on((s, patch) => {
     if ('pianos' in patch || 'progress' in patch || 'settings' in patch) renderList();
+    if ('settings' in patch || 'vst' in patch) renderVst();
   });
   renderList();
   return { renderControls: ui.sync };
