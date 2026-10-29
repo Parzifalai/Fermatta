@@ -14,6 +14,10 @@ import { mountSoundPage } from './ui/sound-page.js';
 import { mountExportPage } from './ui/export-page.js';
 import { openSettings } from './ui/settings-modal.js';
 import { Hotkeys } from './hotkeys.js';
+import './visual/strings.js';
+import { mountTilesPage, visualOf } from './ui/tiles-page.js';
+import { openVideoExport } from './visual/video-export.js';
+import { icon } from './ui/dom.js';
 
 const fm = window.fm;
 const TABS = ['takes', 'sound', 'notes', 'tiles', 'export'];
@@ -43,6 +47,7 @@ class App {
     this.midi.onStatus((s) => store.set({ midi: s }));
     this.midi.on((ev) => this.onMidi(ev));
     await this.midi.init(settings.midiInput);
+    if (store.state.takes.length) this.openTake(store.state.takes[0].id);
     this.loadActivePiano();
     this.loop();
     document.dispatchEvent(new CustomEvent('fermatta:ready', { detail: this }));
@@ -68,9 +73,10 @@ class App {
     this.pages.takes.ui = mountTakesPage(this.pages.takes.el, this);
     this.pages.sound.ui = mountSoundPage(this.pages.sound.el, this);
     this.pages.export.ui = mountExportPage(this.pages.export.el, this);
-    for (const id of ['notes', 'tiles']) {
-      this.pages[id].el.append(h('div', { class: 'placeholder-page' }, '…'));
-    }
+    this.pages.tiles.ui = mountTilesPage(this.pages.tiles.el, this);
+    this.pages.notes.el.append(h('div', { class: 'placeholder-page' }, '…'));
+    this.pages.export.ui.addSection((section) => section(t('export.video'), t('export.video.desc'), ['9:16', '16:9', '1:1'].map((a, i) =>
+      h('button', { class: 'btn' + (i === 0 ? ' primary' : ''), onclick: () => openVideoExport(this, { aspect: a }) }, i === 0 ? icon('video') : null, a))));
     const pill = document.getElementById('midi-pill');
     store.on((s, patch) => {
       if ('midi' in patch) {
@@ -98,13 +104,14 @@ class App {
       this.tabButtons[id].setAttribute('aria-current', id === tab ? 'page' : 'false');
     }
     const prev = store.state.tab;
+    document.getElementById('keyboard').hidden = tab === 'tiles';
     store.set({ tab });
     if (prev !== tab) { this.pages[prev]?.ui?.hide?.(); this.pages[tab]?.ui?.show?.(); }
   }
 
   handColors() {
-    const v = store.state.settings?.visual || {};
-    return { lh: v.lh || '#7fa6d9', rh: v.rh || '#e8b86a' };
+    const v = visualOf(store.state.settings);
+    return { lh: v.lh, rh: v.rh };
   }
 
   loop() {

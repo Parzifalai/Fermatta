@@ -19,27 +19,34 @@ const timeOf = (s) => {
   return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : null;
 };
 
-// video: H.264 mp4 rendered by the app; audio: wav. Optional background video
-// composited under the notes using a rendered matte (white = notes/keyboard).
-async function mux({ video, audio, out, matte, background, duration, width, height }, progress) {
+// video: H.264 mp4 rendered by the app; audio: wav (delayed by audioDelay s).
+// With a background video the notes are laid over it through a matte
+// (white = notes/keyboard), lightened by the notes' own glow.
+async function mux({ video, audio, out, matte, background, duration, width, height, audioDelay = 0, fps = 60, bgDim = 0.35, bgBlur = 0 }, progress) {
   await fsp.mkdir(path.dirname(out), { recursive: true });
   const onStderr = (s) => {
     const t = timeOf(s);
     if (t !== null && duration) progress({ stage: 'mux', ratio: Math.min(1, t / duration) });
   };
+  const ms = Math.round(audioDelay * 1000);
+  const afilter = `adelay=${ms}:all=1,apad`;
   let args;
   if (background && matte) {
+    const blur = bgBlur > 0 ? `,gblur=sigma=${(bgBlur * Math.min(width, height) / 1080 * 30).toFixed(1)}` : '';
     args = ['-y', '-v', 'error', '-stats',
       '-stream_loop', '-1', '-i', background, '-i', video, '-i', matte, '-i', audio,
       '-filter_complex',
-      `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,fps=60[bg];` +
-      `[2:v]format=gray,scale=${width}:${height}[m];[1:v][m]alphamerge[fg];[bg][fg]overlay=shortest=1:format=auto[v]`,
-      '-map', '[v]', '-map', '3:a', '-t', String(duration),
-      '-c:v', 'libx264', '-preset', 'medium', '-crf', '16', '-pix_fmt', 'yuv420p',
+      `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,fps=${fps}${blur},` +
+      `drawbox=color=black@${bgDim}:t=fill[bg];` +
+      `[1:v]split[c][c2];[c2]format=gray[lum];[2:v]format=gray[m0];[m0][lum]blend=all_mode=lighten[m];` +
+      `[c][m]alphamerge[fg];[bg][fg]overlay=shortest=1:format=auto[v];[3:a]${afilter}[a]`,
+      '-map', '[v]', '-map', '[a]', '-t', String(duration),
+      '-c:v', 'libx264', '-preset', 'medium', '-crf', '16', '-pix_fmt', 'yuv420p', '-r', String(fps),
       '-c:a', 'aac', '-b:a', '320k', '-movflags', '+faststart', out];
   } else {
     args = ['-y', '-v', 'error', '-stats', '-i', video, '-i', audio,
-      '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '320k', '-shortest', '-movflags', '+faststart', out];
+      '-map', '0:v', '-map', '1:a', '-af', afilter, '-t', String(duration),
+      '-c:v', 'copy', '-c:a', 'aac', '-b:a', '320k', '-movflags', '+faststart', out];
   }
   await ffmpeg.run(args, { onStderr });
   return out;
