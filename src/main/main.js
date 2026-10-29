@@ -9,6 +9,7 @@ const library = require('./library');
 const pianos = require('./pianos');
 const media = require('./media');
 const transcriber = require('./transcribe');
+const omr = require('./omr');
 
 const ROOT = path.join(__dirname, '..', '..');
 
@@ -195,6 +196,7 @@ function registerIpc() {
   });
 
   ipcMain.handle('transcribe:file', (_e, file) => transcriber.transcribe(file, settings, (p) => send('transcribe:progress', p)));
+  ipcMain.handle('omr:recognize', (_e, file) => omr.recognize(file, settings, (p) => send('omr:progress', p)));
   ipcMain.handle('transcribe:ready', () => transcriber.modelReady(settings));
 
   ipcMain.handle('media:mp3', (_e, wav, out, meta) => media.toMp3(wav, out, meta));

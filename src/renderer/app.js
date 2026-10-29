@@ -86,6 +86,11 @@ class App {
         return parseMusicXML(text, name);
       },
     });
+    // printed sheet music (PDF, scan or photo) → notes
+    this.registerImporter({
+      extensions: ['pdf', 'png', 'jpg', 'jpeg', 'tif', 'tiff', 'bmp', 'webp'],
+      load: (file, name) => this.recognizeSheet(file, name),
+    });
     // audio or a video of someone playing → notes (AI piano transcription)
     this.registerImporter({
       extensions: ['mp3', 'wav', 'flac', 'm4a', 'ogg', 'aac', 'opus', 'mp4', 'mov', 'webm', 'mkv', 'avi'],
@@ -517,6 +522,41 @@ class App {
       } catch (e) {
         toast(t('err.generic', { e: e.message }), { error: true, ms: 7000 });
       }
+    }
+  }
+
+  async recognizeSheet(file, name) {
+    const b = this.busy(t('omr.title'));
+    const label = { tool: 'omr.tool', unpack: 'omr.unpack', read: 'omr.read' };
+    const weight = { tool: [0, 0.35], unpack: [0.35, 0.4], read: [0.4, 0.98] };
+    const off = fm.omr.onProgress((p) => {
+      const [a, z] = weight[p.stage] || [0, 1];
+      b.set(a + (z - a) * (p.ratio || 0), `${t(label[p.stage] || 'omr.read')} ${Math.round((p.ratio || 0) * 100)}%`);
+    });
+    try {
+      let parts;
+      try { parts = await fm.omr.recognize(file); } catch (e) {
+        throw new Error(/no-notes/.test(e.message) ? t('omr.none') : e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
+      }
+      let take = null;
+      for (const bytes of parts) {
+        const u8 = new Uint8Array(bytes);
+        const text = u8[0] === 0x50 && u8[1] === 0x4b ? readMxl(u8) : new TextDecoder().decode(u8);
+        const part = parseMusicXML(text, name);
+        if (!take) { take = part; continue; }
+        // later movements follow the first one
+        const shift = take.duration + 1;
+        for (const n of part.notes) take.notes.push({ ...n, t: n.t + shift });
+        for (const p of part.pedal) take.pedal.push({ ...p, t: p.t + shift });
+        take.duration = shift + part.duration;
+      }
+      take.name = name;
+      take.source = 'scan';
+      if (!take.notes.length) throw new Error(t('omr.none'));
+      return take;
+    } finally {
+      off();
+      b.done();
     }
   }
 

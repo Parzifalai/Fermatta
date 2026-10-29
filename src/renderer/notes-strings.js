@@ -19,6 +19,7 @@ addStrings({
     'cmp.openFile': 'Открыть файл нот', 'cmp.fromLibrary': 'Или из ваших записей', 'cmp.src.live': 'запись', 'cmp.src.midi': 'MIDI', 'cmp.src.musicxml': 'ноты', 'cmp.src.audio': 'по звуку', 'cmp.src.video': 'по видео', 'cmp.src.test': 'тест',
     'cmp.vs': 'совпадение с «{name}»', 'cmp.correct': 'верно {n}', 'cmp.wrong': 'фальшивых {n}', 'cmp.missing': 'пропущено {n}', 'cmp.extra': 'лишних {n}',
     'cmp.fix': 'Исправить по нотам', 'cmp.close': 'Убрать сравнение', 'cmp.fixed': 'Исправлено по нотам: ваш темп и сила нажатия сохранены. Ctrl+Z — вернуть',
+    'omr.title': 'Читаем ноты с листа', 'omr.tool': 'Скачиваем распознавание нот (81 МБ, один раз)', 'omr.unpack': 'Распаковываем', 'omr.read': 'Распознаём', 'omr.none': 'На изображении не нашлось нот. Нужен чёткий скан или ровное фото листа.', 'cmp.src.scan': 'с листа',
     'tr.title': 'Снимаем ноты по слуху', 'tr.model': 'Скачиваем слух (150 МБ, один раз)', 'tr.decode': 'Читаем звук', 'tr.listen': 'Слушаем', 'tr.notes': 'Записываем ноты', 'tr.empty': 'В записи не слышно фортепиано',
   },
   en: {
@@ -38,6 +39,7 @@ addStrings({
     'cmp.openFile': 'Open a notes file', 'cmp.fromLibrary': 'Or from your takes', 'cmp.src.live': 'take', 'cmp.src.midi': 'MIDI', 'cmp.src.musicxml': 'score', 'cmp.src.audio': 'by ear', 'cmp.src.video': 'from video', 'cmp.src.test': 'test',
     'cmp.vs': 'match with \u201c{name}\u201d', 'cmp.correct': '{n} right', 'cmp.wrong': '{n} wrong', 'cmp.missing': '{n} missed', 'cmp.extra': '{n} extra',
     'cmp.fix': 'Fix from the score', 'cmp.close': 'Hide comparison', 'cmp.fixed': 'Fixed from the score: your tempo and touch are kept. Ctrl+Z to undo',
+    'omr.title': 'Reading the sheet music', 'omr.tool': 'Downloading notes recognition (81 MB, once)', 'omr.unpack': 'Unpacking', 'omr.read': 'Recognising', 'omr.none': 'No notes found. Use a sharp scan or a straight photo of the page.', 'cmp.src.scan': 'from sheet',
     'tr.title': 'Transcribing by ear', 'tr.model': 'Downloading the listener (150 MB, once)', 'tr.decode': 'Reading the audio', 'tr.listen': 'Listening', 'tr.notes': 'Writing notes', 'tr.empty': 'No piano can be heard in this file',
   },
 });
