@@ -126,7 +126,6 @@ export async function exportVideo(app, { aspect, short, fps, out }) {
     const renderer = new TilesRenderer();
     renderer.setTake(take);
     renderer.media = app.tilesRenderer?.media || { image: null, video: null };
-    renderer.handsDrawer = app.tilesRenderer?.handsDrawer || null;
     const passes = [{ matte: false, file: await fm.fs.tempFile(`${take.id}-color.mp4`) }];
     if (withBgVideo) passes.push({ matte: true, file: await fm.fs.tempFile(`${take.id}-matte.mp4`) });
     const canvas = new OffscreenCanvas(W, H);

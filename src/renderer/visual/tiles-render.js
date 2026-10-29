@@ -20,7 +20,6 @@ export const DEFAULT_VISUAL = {
   keyboard: 'classic',  // classic | ebony
   velocityShade: true,
   noteNames: false,
-  hands: false,         // animated hands over the keyboard
 };
 
 export const PALETTES = [
@@ -70,7 +69,6 @@ export class TilesRenderer {
   constructor() {
     this.glowCanvas = null;
     this.media = { image: null, video: null };
-    this.handsDrawer = null; // set by the hands module
   }
 
   // Index notes by start time for fast visible-window lookups.
@@ -91,6 +89,7 @@ export class TilesRenderer {
   geometry(W, H, style) {
     const portrait = H > W * 1.2;
     const kh = Math.round(portrait ? Math.min(H * 0.1, W * 0.2) : H * 0.15);
+    const room = 0;
     const pad = Math.round(W * 0.01);
     const key = this.take?.id + style.range + W + H;
     if (!this.rangeCache || this.rangeCache.key !== key) {
@@ -98,8 +97,8 @@ export class TilesRenderer {
       this.rangeCache = { key, lo, hi, L: layout(W - pad * 2, lo, hi) };
     }
     const { lo, hi, L } = this.rangeCache;
-    const hitY = H - kh;
-    return { W, H, kh, pad, lo, hi, L, hitY, pps: hitY / style.speed, unit: Math.min(W, H) / 1080 };
+    const hitY = H - kh - room;
+    return { W, H, kh, room, pad, lo, hi, L, hitY, pps: hitY / style.speed, unit: Math.min(W, H) / 1080 };
   }
 
   draw(g, W, H, time, style, { matte = false } = {}) {
@@ -131,13 +130,12 @@ export class TilesRenderer {
       }
     }
 
+    if (S.beams > 0) this.drawBeams(g, G, S, sounding, matte);
     if (S.glow > 0 && !matte) this.drawGlow(g, G, S, visible, time);
     this.drawNotes(g, G, S, visible, time, matte);
     if (S.smoke > 0 && !matte) this.drawSmoke(g, G, S, time);
-    if (S.beams > 0) this.drawBeams(g, G, S, sounding, matte);
     this.drawKeyboard(g, G, S, sounding, matte);
     if (S.sparks > 0) this.drawSparks(g, G, S, time, matte);
-    if (S.hands && this.handsDrawer) this.handsDrawer(g, G, S, time, matte);
 
     if (!matte && S.brightness !== 1) {
       if (S.brightness < 1) { g.fillStyle = `rgba(0,0,0,${1 - S.brightness})`; g.fillRect(0, 0, W, H); }
@@ -213,10 +211,12 @@ export class TilesRenderer {
         const playing = n.t <= time && n.t + n.d >= time;
         const rad = Math.min(r.w * 0.38, 10 * G.unit);
         if (matte) { g.fillStyle = '#fff'; roundRect(g, r.x, r.y, r.w, r.h, rad); g.fill(); continue; }
-        const base = playing ? lighten(c, 0.12) : c;
+        // quieter notes are darker (not see-through, so glow never washes them out)
+        const shade = S.velocityShade ? 0.55 + (n.v / 127) * 0.45 : 1;
+        const base = playing ? lighten(c, 0.12) : shade < 1 ? darken(c, (1 - shade) * 0.9) : c;
         switch (S.noteStyle) {
           case 'flat':
-            g.globalAlpha = vel;
+            g.globalAlpha = 1;
             g.fillStyle = base;
             roundRect(g, r.x, r.y, r.w, r.h, Math.min(rad, 3 * G.unit)); g.fill();
             break;
@@ -241,17 +241,17 @@ export class TilesRenderer {
             break;
           }
           case 'pill':
-            g.globalAlpha = vel;
+            g.globalAlpha = 1;
             g.fillStyle = base;
             roundRect(g, r.x, r.y, r.w, r.h, r.w / 2); g.fill();
             break;
           default: { // soft
-            g.globalAlpha = vel;
+            g.globalAlpha = 1;
             const gr = g.createLinearGradient(0, r.y, 0, r.y + r.h);
             gr.addColorStop(0, darken(base, 0.18)); gr.addColorStop(1, lighten(base, 0.12));
             g.fillStyle = gr;
             roundRect(g, r.x, r.y, r.w, r.h, rad); g.fill();
-            g.globalAlpha = vel * 0.6;
+            g.globalAlpha = 0.6;
             g.strokeStyle = lighten(base, 0.45);
             g.lineWidth = Math.max(1, G.unit);
             roundRect(g, r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1, rad); g.stroke();
@@ -394,7 +394,13 @@ export class TilesRenderer {
     const ebony = S.keyboard === 'ebony';
     // body
     g.fillStyle = matte ? '#fff' : ebony ? '#0c0b0f' : '#121015';
-    g.fillRect(0, hitY, W, kh);
+    g.fillRect(0, hitY, W, kh + (G.room || 0));
+    if (G.room && !matte) {
+      const fr = g.createLinearGradient(0, hitY + kh, 0, H);
+      fr.addColorStop(0, '#0b0a0d'); fr.addColorStop(1, '#030304');
+      g.fillStyle = fr;
+      g.fillRect(0, hitY + kh, W, G.room);
+    }
     const top = hitY + Math.max(2, 4 * G.unit);
     const wh = kh - (top - hitY) - 2 * G.unit;
     const bh = wh * 0.62;

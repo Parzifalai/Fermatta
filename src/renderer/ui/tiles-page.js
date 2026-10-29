@@ -150,8 +150,7 @@ export function mountTilesPage(root, app) {
       sec(t('tiles.keyboard'),
         seg('keyboard', [['classic', t('kb.classic')], ['ebony', t('kb.ebony')]]),
         row(t('tiles.range'), seg('range', [['auto', t('range.auto')], ['full', t('range.full')]])),
-        row(t('tiles.guides'), toggle('guides')),
-        row(t('tiles.hands'), toggle('hands'))),
+        row(t('tiles.guides'), toggle('guides'))),
       h('div', { class: 'tp-actions' },
         h('button', { class: 'btn primary', onclick: () => openVideoExport(app, { aspect }) }, icon('video'), t('tiles.export')),
         h('button', { class: 'btn quiet', onclick: () => { style = { ...DEFAULT_VISUAL }; setStyle({}, true); } }, icon('restore'), t('sound.reset'))));

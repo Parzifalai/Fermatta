@@ -30,8 +30,11 @@ export function layout(width, lo = LOW, hi = HIGH) {
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 export const keyName = (k) => NAMES[k % 12] + (Math.floor(k / 12) - 1);
 
-export function hexToRgb(hex) {
-  const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex) || [0, 'ff', 'ff', 'ff'];
+// accepts '#rrggbb' and 'rgb(r,g,b)'
+export function hexToRgb(color) {
+  const rgb = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/i.exec(color);
+  if (rgb) return [+rgb[1], +rgb[2], +rgb[3]];
+  const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(color) || [0, 'ff', 'ff', 'ff'];
   return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
 }
 
