@@ -10,7 +10,9 @@ export const DEFAULT_VISUAL = {
   heat: 0.85,           // notes take on heatColor as they near the keys
   heatColor: '#ff8c42',
   bg: { type: 'gradient', a: '#1b1f2a', b: '#07080b', angle: 180, image: '', video: '', blur: 0, dim: 0.35 },
-  noteStyle: 'capsule', // capsule | neon | soft | glass | pill | flat
+  noteStyle: 'capsule', // capsule | neon | liquid | soft | glass | pill | flat
+  opacity: 1,           // see-through notes: 1 solid .. 0.15 almost clear
+  refract: 0.7,         // how strongly liquid-glass notes bend the background
   core: 0.4,            // white-hot core inside capsule / neon notes
   noteWidth: 0.82,      // share of the key width
   speed: 3.2,           // seconds of music visible above the keys
@@ -61,6 +63,11 @@ export const PRESETS = [
     glow: 0.8, sparks: 0.3, sparkColor: '#ffffff', embers: 0.5, emberColor: '#ffc0de', dust: 0.5, smoke: 0.2, smokeColor: '#a06a8a', beams: 0.3, flare: 0.6,
     line: 'laser', lineColor: '#ff8fc8', lineGlow: 0.8, keyboard: 'white', vignette: 0.4, tilt: 0, fog: 0.3,
     bg: { type: 'gradient', a: '#2a1424', b: '#0b0710', angle: 180 } } },
+  { id: 'liquid', style: {
+    lh: '#9fd8ff', rh: '#d2c2ff', keyLh: '#7cc8ff', keyRh: '#b9a4ff', heat: 0, noteStyle: 'liquid', core: 0.4, opacity: 1, refract: 0.9,
+    glow: 0.55, sparks: 0.25, sparkColor: '#ffffff', embers: 0, dust: 0.6, smoke: 0.9, smokeColor: '#7f93b0', beams: 0.2, flare: 0.6,
+    line: 'laser', lineColor: '#bfe3ff', lineGlow: 0.8, keyboard: 'white', vignette: 0.45, tilt: 0, fog: 0.25,
+    bg: { type: 'gradient', a: '#22324a', b: '#070a10', angle: 180 } } },
   { id: 'classic', style: {
     lh: '#7fa6d9', rh: '#e8b86a', keyLh: '', keyRh: '', heat: 0, noteStyle: 'soft', core: 0.4,
     glow: 0.7, sparks: 0.6, sparkColor: '', embers: 0, dust: 0, smoke: 0, beams: 0.6, flare: 0.5,
@@ -348,7 +355,7 @@ export class TilesRenderer {
   }
 
   noteRadius(S, G, b) {
-    return S.noteStyle === 'flat' ? 3 * G.unit : ['pill', 'capsule', 'neon'].includes(S.noteStyle) ? b.w / 2 : Math.min(b.w * 0.38, 10 * G.unit);
+    return S.noteStyle === 'flat' ? 3 * G.unit : ['pill', 'capsule', 'neon', 'liquid'].includes(S.noteStyle) ? b.w / 2 : Math.min(b.w * 0.38, 10 * G.unit);
   }
 
   drawNotes(g, F, matte) {
@@ -364,7 +371,7 @@ export class TilesRenderer {
       if (playing) base = lightc(base, 0.22);
       else if (shade < 1) base = darkc(base, (1 - shade) * 0.75);
       const c0 = this.tint(G, S, base, fy0), c1 = this.tint(G, S, base, fy1);
-      const a0 = this.fogAt(G, S, fy0), a1 = this.fogAt(G, S, fy1);
+      const a0 = this.fogAt(G, S, fy0) * S.opacity, a1 = this.fogAt(G, S, fy1) * S.opacity;
       const p0 = this.proj(G, b.x + b.w / 2, fy0), p1 = this.proj(G, b.x + b.w / 2, fy1);
       const vgrad = (fn) => { const gr = g.createLinearGradient(0, p0[1], 0, p1[1]); fn(gr); return gr; };
       // left/right edges at mid height, for the round "tube" shading
@@ -415,6 +422,24 @@ export class TilesRenderer {
           g.stroke();
           break;
         }
+        case 'liquid': {
+          // liquid glass: the GPU bends the background through the note (see
+          // drawGlass); here only a faint tint, round shading, rim and highlight
+          g.fillStyle = vgrad((gr) => { gr.addColorStop(0, css(c0, 0.2 * a0)); gr.addColorStop(1, css(c1, 0.1 * a1)); });
+          g.fill();
+          g.fillStyle = tube(0.18 * a0, 0.14);
+          g.fill();
+          g.lineWidth = Math.max(1, 1.5 * u);
+          g.strokeStyle = vgrad((gr) => { gr.addColorStop(0, css(lightc(c0, 0.75), 0.9 * a0)); gr.addColorStop(1, css(lightc(c1, 0.6), 0.55 * a1)); });
+          g.stroke();
+          const sw = Math.max(1.5 * u, b.w * 0.11);
+          const inset = Math.min(b.w * 0.3, (fy1 - fy0) * 0.18);
+          if (fy1 - fy0 > inset * 2 + 2 * u) {
+            g.fillStyle = vgrad((gr) => { gr.addColorStop(0, `rgba(255,255,255,${0.75 * a0})`); gr.addColorStop(1, `rgba(255,255,255,${0.2 * a1})`); });
+            this.shape(g, G, b.x + b.w * 0.2, fy0 + inset, sw, fy1 - inset, sw / 2); g.fill();
+          }
+          break;
+        }
         case 'glass': {
           g.fillStyle = vgrad((gr) => { gr.addColorStop(0, css(lightc(c0, 0.15), 0.85 * a0)); gr.addColorStop(1, css(darkc(c1, 0.15), 0.7 * a1)); });
           g.fill();
@@ -460,7 +485,8 @@ export class TilesRenderer {
       const mid = (fy0 + fy1) / 2;
       const c0 = this.tint(G, S, rgbOf(this.colorOf(S, n)), fy0), c1 = this.tint(G, S, rgbOf(this.colorOf(S, n)), fy1);
       const vel = 0.55 + (n.v / 127) * 0.45;
-      const a = (playing ? 0.85 : 0.42) * (S.noteStyle === 'neon' ? 1.6 : 1) * vel * this.fogAt(G, S, mid);
+      const kind = S.noteStyle === 'neon' ? 1.6 : S.noteStyle === 'liquid' ? 0.35 : 1;
+      const a = (playing ? 0.85 : 0.42) * kind * vel * this.fogAt(G, S, mid) * Math.max(0.35, S.opacity);
       const p0 = this.proj(G, b.x, fy0), p1 = this.proj(G, b.x, fy1);
       const gr = g.createLinearGradient(0, p0[1], 0, p1[1]);
       gr.addColorStop(0, css(lightc(c0, playing ? 0.2 : 0), a));
@@ -489,6 +515,26 @@ export class TilesRenderer {
       g.fillStyle = gr;
       g.fillRect(G.pad + key.x + 1, top, key.w - 2, h);
     }
+  }
+
+  // Liquid glass: a mask whose red channel is the sideways slope of each note
+  // (left edge 0, middle 0.5, right edge 1); the GPU bends the background by it.
+  drawGlass(g, F) {
+    const { G, S } = F;
+    g.save();
+    g.beginPath(); g.rect(0, 0, G.W, G.hitY); g.clip();
+    this.eachNote(F, (n, b, fy0, fy1) => {
+      const pm = this.proj(G, b.x, (fy0 + fy1) / 2), pr = this.proj(G, b.x + b.w, (fy0 + fy1) / 2);
+      const gr = g.createLinearGradient(pm[0], 0, pr[0], 0);
+      const a = this.fogAt(G, S, (fy0 + fy1) / 2) * Math.max(0.3, S.opacity);
+      gr.addColorStop(0, `rgba(0,128,0,${a})`);
+      gr.addColorStop(0.5, `rgba(128,128,0,${a})`);
+      gr.addColorStop(1, `rgba(255,128,0,${a})`);
+      g.fillStyle = gr;
+      this.shape(g, G, b.x, fy0, b.w, fy1, this.noteRadius(S, G, b));
+      g.fill();
+    });
+    g.restore();
   }
 
   // Light columns rising from keys that are sounding.

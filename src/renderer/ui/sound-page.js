@@ -25,7 +25,7 @@ export function mountSoundPage(root, app) {
         h('button', { class: 'btn', disabled: !st.plugin, onclick: () => app.vstChoose().then(renderVst) }, t(st.hasState ? 'vst.change' : 'vst.choose')),
         on
           ? h('button', { class: 'btn quiet', onclick: () => app.useVst(false).then(renderVst) }, t('vst.off'))
-          : h('button', { class: 'btn primary', disabled: !st.hasState, title: st.hasState ? '' : t('vst.chooseFirst'), onclick: () => app.useVst(true).then(renderVst) }, t('vst.on')),
+          : h('button', { class: 'btn primary', disabled: !st.hasState, title: st.hasState ? '' : t('vst.chooseFirst'), onclick: () => app.useVst(true).then(renderVst) }, t('vst.on', { name })),
         h('button', { class: 'btn quiet', onclick: async () => { if (await window.fm.vst.pick()) { store.set({ vst: await window.fm.vst.status() }); renderVst(); } } }, t('vst.other'))),
       h('div', { class: 'pmeta' }, t(on ? 'vst.noteOn' : 'vst.note')));
   }
@@ -42,7 +42,7 @@ export function mountSoundPage(root, app) {
     ui.group(t('sound.hands'), h('div', { class: 'ctl-pair' }, ui.slider('leftVolume'), ui.slider('rightVolume'))),
     ui.group('', ui.slider('transpose'), ui.slider('tempo'), ui.slider('noise')),
     h('div', { style: { marginTop: '10px' } }, reset));
-  const fx = h('section', { class: 'controls fx glass' }, h('h2', {}, t('fx.title')), ...effectsBlock(ui));
+  const fx = h('section', { class: 'controls fx glass' }, h('h2', {}, t('fx.title')), ...effectsBlock(ui, app));
 
   root.append(h('div', { class: 'sound' }, pianos, controls, fx));
 

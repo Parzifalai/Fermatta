@@ -80,6 +80,28 @@ void main() {
   o = vec4(c, 1.0);
 }`;
 
+// Liquid glass: the background is bent through each note like through a lens,
+// with a slow ripple and a touch of colour fringing at the edges.
+const FS_GLASS = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o;
+uniform sampler2D uScene, uGlass; uniform float uStrength, uTime; uniform vec2 uRes;
+${NOISE}
+void main() {
+  vec4 m = texture(uGlass, vUv);
+  vec3 base = texture(uScene, vUv).rgb;
+  if (m.a < 0.004) { o = vec4(base, 1.0); return; }
+  float nx = m.r * 2.0 - 1.0;
+  float rip = fbm(vec2(gl_FragCoord.x / 38.0, gl_FragCoord.y / 85.0 + uTime * 0.7)) - 0.5;
+  vec2 off = vec2(nx * (0.4 + 0.6 * abs(nx)) * 0.045 * uStrength + rip * 0.01, rip * 0.012) * m.a;
+  off.x *= uRes.y / uRes.x;
+  vec3 bent;
+  bent.r = texture(uScene, vUv - off * 1.1).r;
+  bent.g = texture(uScene, vUv - off).g;
+  bent.b = texture(uScene, vUv - off * 0.9).b;
+  o = vec4(mix(base, bent * 1.07 + 0.02, m.a), 1.0);
+}`;
+
 const VS_PART = `#version 300 es
 in vec2 aCorner;
 in vec4 aBox;    // x, y (px from top-left), width, height
@@ -169,7 +191,7 @@ export class TilesComposer {
     this.size = [0, 0];
     this.progs = {
       blit: this.program(VS, FS_BLIT), smoke: this.program(VS, FS_SMOKE), line: this.program(VS, FS_LINE),
-      down: this.program(VS, FS_DOWN), up: this.program(VS, FS_UP), final: this.program(VS, FS_FINAL),
+      down: this.program(VS, FS_DOWN), glass: this.program(VS, FS_GLASS), up: this.program(VS, FS_UP), final: this.program(VS, FS_FINAL),
       part: this.program(VS_PART, FS_PART),
     };
     // full-screen triangle pair
@@ -201,7 +223,7 @@ export class TilesComposer {
     };
     attr('aBox', 4, 0); attr('aAng', 1, 4); attr('aCol', 4, 5);
     gl.bindVertexArray(null);
-    this.tex = { bg: this.texture(), fg: this.texture(), em: this.texture(), boost: this.texture() };
+    this.tex = { bg: this.texture(), fg: this.texture(), em: this.texture(), boost: this.texture(), glass: this.texture() };
   }
 
   program(vs, fs) {
@@ -253,12 +275,13 @@ export class TilesComposer {
     this.canvas.width = W; this.canvas.height = H;
     for (const t of this.targets || []) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fb); }
     this.scene = this.target(W, H, false);
+    this.scene2 = this.target(W, H, false);
     this.fx = this.target(W, H, true);
     this.mips = [];
     let w = Math.max(1, W >> 1), h = Math.max(1, H >> 1);
     for (let i = 0; i < 7 && w >= 4 && h >= 4; i++) { this.mips.push(this.target(w, h, true)); w = Math.max(1, w >> 1); h = Math.max(1, h >> 1); }
-    this.targets = [this.scene, this.fx, ...this.mips];
-    this.layers = { bg: make2d(W, H), fg: make2d(W, H), em: make2d(Math.ceil(W / 2), Math.ceil(H / 2)) };
+    this.targets = [this.scene, this.scene2, this.fx, ...this.mips];
+    this.layers = { bg: make2d(W, H), fg: make2d(W, H), em: make2d(Math.ceil(W / 2), Math.ceil(H / 2)), glass: make2d(Math.ceil(W / 2), Math.ceil(H / 2)) };
   }
 
   upload(tex, src, premultiply) {
@@ -323,8 +346,22 @@ export class TilesComposer {
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR);
       this.pass(this.progs.smoke, this.scene, { uRes: [W, H], uTime: time, uAmt: S.smoke, uHit: G.hitY / H, uCol: rgbOf(S.smokeColor).map((v) => v / 255) });
     }
+    let scene = this.scene;
+    if (S.noteStyle === 'liquid') {
+      // bend the background through the glass notes before drawing them on top
+      const gg = L.glass.getContext('2d');
+      gg.setTransform(1, 0, 0, 1, 0, 0);
+      gg.clearRect(0, 0, L.glass.width, L.glass.height);
+      gg.setTransform(0.5, 0, 0, 0.5, 0, 0);
+      R.drawGlass(gg, F);
+      this.upload(this.tex.glass, L.glass, false);
+      gl.disable(gl.BLEND);
+      this.pass(this.progs.glass, this.scene2, { uStrength: S.refract, uTime: time, uRes: [W, H] }, { uScene: this.scene.tex, uGlass: this.tex.glass });
+      gl.enable(gl.BLEND);
+      scene = this.scene2;
+    }
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    this.pass(this.progs.blit, this.scene, { uGain: 1 }, { uTex: this.tex.fg });
+    this.pass(this.progs.blit, scene, { uGain: 1 }, { uTex: this.tex.fg });
 
     // 3. light: hit line and particles, added together
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fx.fb);
@@ -382,7 +419,7 @@ export class TilesComposer {
     // 5. final picture
     this.pass(this.progs.final, null, {
       uBloomK: S.glow * 0.75, uVig: S.vignette, uBright: S.brightness, uHit: G.hitY / H,
-    }, { uScene: this.scene.tex, uFx: this.fx.tex, uBloom: m[1].tex });
+    }, { uScene: scene.tex, uFx: this.fx.tex, uBloom: m[1].tex });
     return G;
   }
 }

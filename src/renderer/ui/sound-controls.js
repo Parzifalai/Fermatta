@@ -37,6 +37,8 @@ const SPEC = {
   comp: { min: 0, max: 1, step: 0.01, label: 'fx.comp', ends: ['fx.comp.soft', 'fx.comp.dense'], fmt: offOr(pct) },
   echoMix: { min: 0, max: 0.8, step: 0.01, label: 'fx.echoMix', fmt: offOr(pct) },
   echoTime: { min: 0.06, max: 1.2, step: 0.01, label: 'fx.echoTime', fmt: (v) => t('fx.ms', { n: Math.round(v * 1000) }) },
+  pad: { min: 0, max: 1, step: 0.01, label: 'fx.pad', ends: ['fx.pad.none', 'fx.pad.full'], fmt: offOr(pct) },
+  shimmer: { min: 0, max: 0.8, step: 0.01, label: 'fx.shimmer', fmt: offOr(pct) },
   echoFeedback: { min: 0, max: 0.85, step: 0.01, label: 'fx.echoFeedback', ends: ['fx.echoFeedback.few', 'fx.echoFeedback.many'], fmt: pct },
 };
 
@@ -82,9 +84,11 @@ export function soundUI(app) {
   return { slider, halls, group, sync };
 }
 
-// Everything under "Effects": hall, stereo width, compressor and echo.
-export function effectsBlock(ui) {
+// Everything under "Effects": afterglow, hall, stereo width, compressor and echo.
+export function effectsBlock(ui, app) {
+  const time = h('button', { class: 'btn time-btn', title: t('fx.time.hint'), onclick: () => app.timeSound() }, t('fx.time'));
   return [
+    ui.group(t('fx.after'), time, ui.slider('pad'), ui.slider('shimmer')),
     ui.group(t('fx.reverb'), ui.halls(), ui.slider('hallMix'), ui.slider('reverbSize'), ui.slider('reverbPre'), ui.slider('reverbTone')),
     ui.group(t('fx.space'), ui.slider('width')),
     ui.group(t('fx.dynamics'), ui.slider('comp')),

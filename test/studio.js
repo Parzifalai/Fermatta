@@ -23,6 +23,7 @@
   a.go('tiles');
   const ui = a.pages.tiles.ui;
   if (window.PRESET) document.querySelector(`.preset[data-id="${window.PRESET}"]`)?.click();
+  if (window.PATCH) a.setVisual(window.PATCH);
   if (window.TAB) document.querySelector(`.studio-tabs [data-tab="${window.TAB}"]`)?.click();
   if (window.ASPECT) document.querySelector(`.tiles-head [data-a="${window.ASPECT}"]`)?.click();
   a.pausedAt = window.AT ?? 4.3;

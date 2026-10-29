@@ -42,16 +42,22 @@ addStrings({
     'auto.longer': 'звук длиннее', 'auto.shorter': 'звук короче и чётче', 'auto.warmer': 'окраска теплее', 'auto.brighter': 'окраска ярче',
     'auto.expressive': 'больше разницы между тихим и громким', 'auto.even': 'громкость ровнее', 'auto.tooShort': 'В записи слишком мало нот для разбора',
 
-    'vst.sub': 'ваш инструмент', 'vst.none': 'Kontakt не найден', 'vst.desc': 'Ваши библиотеки Kontakt, например Noire. Записи и видео звучат через инструмент, выбранный в Kontakt.',
-    'vst.choose': 'Выбрать инструмент', 'vst.change': 'Сменить инструмент', 'vst.on': 'Звучать через Kontakt', 'vst.off': 'Вернуть встроенный рояль', 'vst.other': 'Другой плагин…',
+    'vst.sub': 'ваш инструмент', 'vst.none': 'Kontakt не найден', 'vst.desc': 'Kontakt, Spitfire LABS или другой инструмент VST3. Записи и видео звучат через инструмент, выбранный в его окне.',
+    'vst.choose': 'Выбрать инструмент', 'vst.change': 'Сменить инструмент', 'vst.on': 'Звучать через {name}', 'vst.off': 'Вернуть встроенный рояль', 'vst.other': 'Другой плагин…',
     'vst.chooseFirst': 'Сначала выберите инструмент в окне Kontakt',
-    'vst.note': 'Откроется окно Kontakt: загрузите Noire (или другой инструмент) и закройте окно. Первый запуск Kontakt занимает около минуты.',
+    'vst.note': 'Откроется окно плагина: выберите инструмент и закройте окно. Kontakt при первом запуске открывается около минуты.',
     'vst.noteOn': 'Перед первым прослушиванием запись отрисовывается в Kontakt, это занимает немного времени. Живая игра по-прежнему звучит из вашего пианино.',
     'vst.setupTitle': 'Готовим подключение плагинов', 'vst.stage.venv': 'Создаём окружение', 'vst.stage.packages': 'Скачиваем помощника (около 30 МБ)',
     'vst.opening': 'Открываем Kontakt', 'vst.openingHint': 'Kontakt запускается, это может занять минуту', 'vst.windowHint': 'Выберите инструмент в окне Kontakt и закройте его',
     'vst.ready': 'Инструмент выбран, звук есть', 'vst.silent': 'Kontakt молчит: инструмент не загружен. Откройте окно ещё раз и выберите Noire',
     'vst.rendering': 'Готовим звук Kontakt', 'vst.renderingHint': 'Kontakt проигрывает запись про себя', 'vst.failed': 'Kontakt: {e}',
     'vst.noPython': 'Для подключения Kontakt нужен Python 3.9 или новее (python.org). Установите его и нажмите ещё раз.', 'vst.noKontakt': 'Kontakt не найден. Установите Kontakt или Kontakt Player через Native Access',
+
+    'hall.cinema': 'Кинозал', 'fx.after': 'Послезвучие', 'fx.pad': 'Подложка', 'fx.pad.none': 'Только рояль', 'fx.pad.full': 'Как струнные',
+    'fx.shimmer': 'Мерцание', 'fx.time': 'Как в Time', 'fx.time.hint': 'Огромный мягкий зал, мерцающий хвост, подложка и медленное эхо',
+    'fx.time.done': 'Включено послезвучие «Как в Time»',
+
+    'ns.liquid': 'Жидкое стекло', 'studio.opacity': 'Прозрачность', 'studio.refract': 'Преломление', 'preset.liquid': 'Жидкое стекло',
   },
   en: {
     'tiles.fullscreen': 'Full screen', 'tiles.hint': 'Space to listen', 'tiles.colors': 'Hand colours', 'tiles.keyColors': 'Keys',
@@ -93,15 +99,21 @@ addStrings({
     'auto.longer': 'longer sustain', 'auto.shorter': 'shorter, clearer notes', 'auto.warmer': 'warmer tone', 'auto.brighter': 'brighter tone',
     'auto.expressive': 'more contrast between soft and loud', 'auto.even': 'more even loudness', 'auto.tooShort': 'Too few notes to analyse',
 
-    'vst.sub': 'your instrument', 'vst.none': 'Kontakt not found', 'vst.desc': 'Your Kontakt libraries, such as Noire. Takes and videos play through the instrument chosen in Kontakt.',
-    'vst.choose': 'Choose instrument', 'vst.change': 'Change instrument', 'vst.on': 'Play through Kontakt', 'vst.off': 'Back to the built-in piano', 'vst.other': 'Another plugin…',
+    'vst.sub': 'your instrument', 'vst.none': 'Kontakt not found', 'vst.desc': 'Kontakt, Spitfire LABS or another VST3 instrument. Takes and videos play through the instrument chosen in its window.',
+    'vst.choose': 'Choose instrument', 'vst.change': 'Change instrument', 'vst.on': 'Play through {name}', 'vst.off': 'Back to the built-in piano', 'vst.other': 'Another plugin…',
     'vst.chooseFirst': 'Choose an instrument in the Kontakt window first',
-    'vst.note': 'The Kontakt window opens: load Noire (or another instrument) and close the window. Kontakt takes about a minute to start the first time.',
+    'vst.note': 'The plugin window opens: choose an instrument and close the window. Kontakt takes about a minute to start the first time.',
     'vst.noteOn': 'Before the first listen the take is rendered in Kontakt, which takes a moment. Live playing still comes from your piano.',
     'vst.setupTitle': 'Preparing plugin support', 'vst.stage.venv': 'Creating the environment', 'vst.stage.packages': 'Downloading the helper (about 30 MB)',
     'vst.opening': 'Opening Kontakt', 'vst.openingHint': 'Kontakt is starting, this can take a minute', 'vst.windowHint': 'Choose an instrument in the Kontakt window and close it',
     'vst.ready': 'Instrument chosen, sound is working', 'vst.silent': 'Kontakt is silent: no instrument loaded. Open the window again and choose Noire',
     'vst.rendering': 'Preparing the Kontakt sound', 'vst.renderingHint': 'Kontakt is playing the take silently', 'vst.failed': 'Kontakt: {e}',
     'vst.noPython': 'Kontakt support needs Python 3.9 or newer (python.org). Install it and try again.', 'vst.noKontakt': 'Kontakt not found. Install Kontakt or Kontakt Player with Native Access',
+
+    'hall.cinema': 'Cinema', 'fx.after': 'Afterglow', 'fx.pad': 'Pad', 'fx.pad.none': 'Piano only', 'fx.pad.full': 'Like strings',
+    'fx.shimmer': 'Shimmer', 'fx.time': 'Like in Time', 'fx.time.hint': 'Huge soft hall, shimmering tail, a pad and a slow echo',
+    'fx.time.done': 'Afterglow "Like in Time" is on',
+
+    'ns.liquid': 'Liquid glass', 'studio.opacity': 'Opacity', 'studio.refract': 'Refraction', 'preset.liquid': 'Liquid glass',
   },
 });

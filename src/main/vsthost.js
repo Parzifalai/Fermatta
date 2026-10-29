@@ -11,7 +11,14 @@ const { app } = require('electron');
 const PACKAGES = ['pedalboard==0.9.26', 'mido==1.3.3', 'numpy'];
 const toolsDir = (settings) => path.join(path.dirname(settings.get().pianosDir), 'tools', 'vsthost');
 const venvPython = (settings) => path.join(toolsDir(settings), 'venv', 'Scripts', 'python.exe');
-const statePath = (settings) => path.join(toolsDir(settings), 'instrument.state');
+// each plugin keeps its own chosen instrument
+function statePath(settings) {
+  const p = settings.get().vstPlugin || findKontakt();
+  const file = path.join(toolsDir(settings), `instrument-${p ? path.basename(p, '.vst3') : 'none'}.state`);
+  const old = path.join(toolsDir(settings), 'instrument.state');
+  if (!fs.existsSync(file) && fs.existsSync(old) && p && /kontakt/i.test(p)) fs.renameSync(old, file);
+  return file;
+}
 const hostScript = () => path.join(__dirname, 'vsthost', 'host.py').replace('app.asar', 'app.asar.unpacked');
 
 function run(cmd, args, onLine) {

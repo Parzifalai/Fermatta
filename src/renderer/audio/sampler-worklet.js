@@ -6,6 +6,22 @@
 
 const DB = (db) => Math.pow(10, db / 20);
 const MAX_VOICES = 192;
+const MAX_PADS = 48;
+
+// One cycle of a soft, string-like tone for the "pad" layer: harmonics with
+// falling strength, odd ones a little louder, like a bowed string through felt.
+const PAD_TABLE = (() => {
+  const N = 2048;
+  const t = new Float32Array(N + 1);
+  for (let h = 1; h <= 9; h++) {
+    const a = (h % 2 ? 1 : 0.6) / Math.pow(h, 1.25);
+    for (let i = 0; i <= N; i++) t[i] += a * Math.sin((2 * Math.PI * h * i) / N);
+  }
+  let m = 0;
+  for (let i = 0; i <= N; i++) m = Math.max(m, Math.abs(t[i]));
+  for (let i = 0; i <= N; i++) t[i] /= m;
+  return t;
+})();
 
 class PianoSampler extends AudioWorkletProcessor {
   constructor() {
@@ -16,6 +32,7 @@ class PianoSampler extends AudioWorkletProcessor {
     this.releaseByKey = [];
     this.ccRegions = [];
     this.voices = [];
+    this.pads = [];
     this.queue = [];
     this.cc = new Float32Array(128);
     this.held = new Uint8Array(128);
@@ -24,7 +41,7 @@ class PianoSampler extends AudioWorkletProcessor {
     this.heldHand = new Uint8Array(128);
     this.seq = new Uint32Array(128);
     this.ratio = 1;
-    this.params = { length: 0, release: 1, brightness: 0, sensitivity: 0, transpose: 0, hands: [1, 1], resonance: 0.5, noise: 1 };
+    this.params = { length: 0, release: 1, brightness: 0, sensitivity: 0, transpose: 0, hands: [1, 1], resonance: 0.5, noise: 1, pad: 0 };
     this.port.onmessage = (e) => this.onMessage(e.data);
   }
 
@@ -45,6 +62,7 @@ class PianoSampler extends AudioWorkletProcessor {
     } else if (m.type === 'stop') {
       this.queue.length = 0;
       for (const v of this.voices) this.fastFade(v);
+      for (const pv of this.pads) { pv.stage = 2; pv.relMul = Math.exp(Math.log(0.001) / (0.05 * sampleRate)); }
       this.held.fill(0);
       this.cc[64] = 0;
       for (const [k, v] of Object.entries(this.defaultCC || {})) this.cc[k] = v;
@@ -186,6 +204,26 @@ class PianoSampler extends AudioWorkletProcessor {
       if (rnd < r.lorand || rnd >= r.hirand) continue;
       this.startVoice(i, k, gv, gv, hand, hg, false);
     }
+    if (p.pad > 0) this.startPad(k, gv, hg);
+  }
+
+  // A pad voice swells in under the note and keeps the harmony ringing after it.
+  startPad(k, vel, handGain) {
+    if (this.pads.length >= MAX_PADS) this.pads.shift();
+    const f = 440 * Math.pow(2, (k - 69) / 12);
+    // high notes are quieter so the pad stays a soft bed under the melody
+    const tilt = k > 72 ? Math.pow(0.97, k - 72) : 1;
+    this.pads.push({
+      key: k, stage: 0, env: 0, gain: (0.35 + (vel / 127) * 0.65) * tilt * handGain * 0.22,
+      inc: [f * (1 - 0.0035), f * (1 + 0.0035)].map((x) => (x * 2048) / sampleRate),
+      ph: [Math.random() * 2048, Math.random() * 2048],
+      lp: [0, 0], cut: Math.min(0.5, (f * 6) / sampleRate * 6.28),
+      attack: 1 / (0.9 * sampleRate), relMul: 1,
+    });
+  }
+
+  releasePads(k) {
+    for (const pv of this.pads) if (pv.key === k && pv.stage < 2) { pv.stage = 2; pv.relMul = Math.exp(Math.log(0.001) / (3.5 * sampleRate)); }
   }
 
   noteOff(key) {
@@ -197,6 +235,7 @@ class PianoSampler extends AudioWorkletProcessor {
   damp(key) {
     const k = key + (this.params.transpose | 0);
     let had = false;
+    this.releasePads(k);
     for (const v of this.voices) if (v.key === k && !v.release && v.stage < 2) { this.release(v); had = true; }
     if (!had || this.params.noise <= 0) return;
     // release ("damper") samples, quieter the longer the note was held
@@ -288,6 +327,38 @@ class PianoSampler extends AudioWorkletProcessor {
       v.age += to - from;
       if (dead) this.voices.splice(vi, 1);
     }
+    this.renderPads(outL, outR, from, to);
+  }
+
+  renderPads(outL, outR, from, to) {
+    const level = this.params.pad;
+    if (!this.pads.length) return;
+    const T = PAD_TABLE;
+    // held pads fade slowly too, so a long chord does not drone forever
+    const hold = Math.exp(Math.log(0.5) / (9 * sampleRate));
+    for (let pi = this.pads.length - 1; pi >= 0; pi--) {
+      const pv = this.pads[pi];
+      let dead = false;
+      for (let i = from; i < to; i++) {
+        if (pv.stage === 0) { pv.env += pv.attack; if (pv.env >= 1) { pv.env = 1; pv.stage = 1; } }
+        else if (pv.stage === 1) pv.env *= hold;
+        else { pv.env *= pv.relMul; if (pv.env < 0.0005) { dead = true; break; } }
+        let a = pv.ph[0], b = pv.ph[1];
+        const ia = a | 0, ib = b | 0;
+        const sa = T[ia] + (T[ia + 1] - T[ia]) * (a - ia);
+        const sb = T[ib] + (T[ib + 1] - T[ib]) * (b - ib);
+        a += pv.inc[0]; if (a >= 2048) a -= 2048;
+        b += pv.inc[1]; if (b >= 2048) b -= 2048;
+        pv.ph[0] = a; pv.ph[1] = b;
+        // gentle low-pass per side for a warm, bowed tone
+        pv.lp[0] += (sa - pv.lp[0]) * pv.cut;
+        pv.lp[1] += (sb - pv.lp[1]) * pv.cut;
+        const g = pv.env * pv.gain * level;
+        outL[i] += pv.lp[0] * g;
+        outR[i] += pv.lp[1] * g;
+      }
+      if (dead) this.pads.splice(pi, 1);
+    }
   }
 
   process(_inputs, outputs) {
@@ -313,3 +384,49 @@ class PianoSampler extends AudioWorkletProcessor {
 }
 
 registerProcessor('fermatta-piano', PianoSampler);
+
+// Octave-up pitch shifter for the shimmer tail: two read heads sweep through a
+// delay line at double speed and cross-fade, the classic tape-style shifter.
+class Shimmer extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.N = 4096;
+    this.buf = [new Float32Array(this.N * 2), new Float32Array(this.N * 2)];
+    this.w = 0;
+    this.d = 0;
+  }
+
+  process(inputs, outputs) {
+    const inp = inputs[0], out = outputs[0];
+    if (!out.length) return true;
+    const N = this.N;
+    const n = out[0].length;
+    for (let c = 0; c < out.length; c++) {
+      const x = inp[c] || inp[0];
+      const y = out[c];
+      const buf = this.buf[c] || this.buf[0];
+      let w = this.w, d = this.d;
+      for (let i = 0; i < n; i++) {
+        const s = x ? x[i] : 0;
+        buf[w] = s; buf[w + N] = s;
+        // read position runs ahead at 2x: delay shrinks by one sample per sample
+        let acc = 0;
+        for (let k = 0; k < 2; k++) {
+          const dd = (d + k * N / 2) % N;
+          const pos = w + N - dd;
+          const ip = pos | 0, f = pos - ip;
+          const v = buf[ip % (2 * N)] * (1 - f) + buf[(ip + 1) % (2 * N)] * f;
+          const win = Math.sin((Math.PI * dd) / N);
+          acc += v * win * win;
+        }
+        y[i] = acc;
+        w = (w + 1) % N;
+        d = d - 1; if (d < 0) d += N;
+      }
+      if (c === out.length - 1) { this.w = w; this.d = d; }
+    }
+    return true;
+  }
+}
+
+registerProcessor('fermatta-shimmer', Shimmer);

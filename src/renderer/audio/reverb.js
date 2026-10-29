@@ -8,6 +8,7 @@ export const HALLS = {
   hall: { rt: 2.4, pre: 0.022, damp: 0.38 },
   concert: { rt: 3.2, pre: 0.03, damp: 0.32 },
   cathedral: { rt: 5.5, pre: 0.045, damp: 0.25 },
+  cinema: { rt: 9, pre: 0.05, damp: 0.3 },
 };
 
 function rng(seed) {

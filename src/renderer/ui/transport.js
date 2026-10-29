@@ -61,7 +61,8 @@ export function mountTransport(root, app) {
     seek.disabled = recording || !s.take;
     const p = s.pianos.find((x) => x.id === s.settings?.pianoId);
     const vst = s.settings?.soundSource === 'vst';
-    pianoName.textContent = vst ? 'Kontakt' : p ? p.name.split(' — ')[1] || p.name : '—';
+    const vstName = (s.vst?.plugin || s.settings?.vstPlugin || 'Kontakt').split(/[\\/]/).pop().replace(/\.vst3$/i, '');
+    pianoName.textContent = vst ? vstName : p ? p.name.split(' — ')[1] || p.name : '—';
     pianoSub.textContent = vst ? t('vst.sub') : s.pianoLoading !== null ? `${t('sound.loading')} ${Math.round(s.pianoLoading * 100)}%` : p ? p.piano : t('err.noPiano');
     vol.title = t('sound.volume');
     if (s.punch) title.textContent = t('punch.listen', { time: fmtTime(s.punch.mark) });

@@ -26,6 +26,15 @@ export const DEFAULT_SOUND = {
   echoMix: 0,       // ping-pong echo level, 0 = off
   echoTime: 0.36,   // seconds between repeats
   echoFeedback: 0.35,
+  pad: 0,           // soft string-like layer that keeps chords ringing
+  shimmer: 0,       // octave-up glistening reverb tail
+};
+
+// "Like in Time": huge soft hall, shimmer, a bowed pad and a slow echo.
+export const TIME_SOUND = {
+  hall: 'cinema', hallMix: 0.42, reverbSize: 1.1, reverbPre: 30, reverbTone: -0.3,
+  shimmer: 0.32, pad: 0.38, echoMix: 0.14, echoTime: 0.5, echoFeedback: 0.38,
+  width: 1.45, length: 0.4, brightness: -0.2, comp: 0.2,
 };
 
 // Builds the same chain inside any (live or offline) context:
@@ -33,8 +42,8 @@ export const DEFAULT_SOUND = {
 // Without a pack the chain has no piano and plays ready-made audio (Kontakt) fed into chain.input.
 async function buildChain(ctx, pack, sound) {
   let node = null;
+  await ctx.audioWorklet.addModule(WORKLET);
   if (pack) {
-    await ctx.audioWorklet.addModule(WORKLET);
     node = new AudioWorkletNode(ctx, 'fermatta-piano', { numberOfInputs: 0, outputChannelCount: [2] });
     const ready = waitFor(node.port, 'ready');
     node.port.postMessage({ type: 'init', sab: pack.sab, meta: pack.meta });
@@ -64,6 +73,18 @@ async function buildChain(ctx, pack, sound) {
   const split = ctx.createChannelSplitter(2);
   const merge = ctx.createChannelMerger(2);
   const wLL = gain(1), wRL = gain(0), wLR = gain(0), wRR = gain(1);
+  // shimmer: pitch the sound up an octave into a long hall that feeds back on itself
+  const shimSend = gain(0);
+  const shimHp = ctx.createBiquadFilter();
+  shimHp.type = 'highpass'; shimHp.frequency.value = 350;
+  const shimPitch = new AudioWorkletNode(ctx, 'fermatta-shimmer', { numberOfInputs: 1, outputChannelCount: [2] });
+  const shimConv = ctx.createConvolver();
+  const shimLp = ctx.createBiquadFilter();
+  shimLp.type = 'lowpass'; shimLp.frequency.value = 7000;
+  const shimFb = gain(0);
+  const shimDelay = ctx.createDelay(1);
+  shimDelay.delayTime.value = 0.08;
+  const shimOut = gain(0);
   const master = gain();
   const limiter = ctx.createDynamicsCompressor();
   limiter.threshold.value = -1.5; limiter.knee.value = 0; limiter.ratio.value = 20;
@@ -80,6 +101,9 @@ async function buildChain(ctx, pack, sound) {
   dl.connect(echoMerge, 0, 0);
   dr.connect(echoMerge, 0, 1);
   echoMerge.connect(bus);
+  makeup.connect(shimSend).connect(shimHp).connect(shimPitch).connect(shimConv).connect(shimLp).connect(shimOut).connect(bus);
+  shimLp.connect(shimFb).connect(shimDelay).connect(shimPitch);
+  shimConv.buffer = makeImpulse(ctx, 'cinema', { size: 0.8, tone: -0.2 });
   bus.connect(split);
   split.connect(wLL, 0).connect(merge, 0, 0);
   split.connect(wRL, 1).connect(merge, 0, 0);
@@ -88,7 +112,7 @@ async function buildChain(ctx, pack, sound) {
   merge.connect(master).connect(limiter).connect(ctx.destination);
   const chain = {
     ctx, node, input: low, low, high, comp, makeup, dry, convs, active: 0, irKey: null, wet,
-    echoSend, dl, dr, fbL, fbR, wLL, wRL, wLR, wRR, master,
+    echoSend, dl, dr, fbL, fbR, wLL, wRL, wLR, wRR, master, shimSend, shimFb, shimOut,
     offline: typeof OfflineAudioContext !== 'undefined' && ctx instanceof OfflineAudioContext,
   };
   applySound(chain, sound);
@@ -147,6 +171,10 @@ function applySound(chain, s) {
   set(chain.dr.delayTime, s.echoTime ?? 0.36);
   set(chain.fbL.gain, em > 0 ? (s.echoFeedback ?? 0.35) : 0);
   set(chain.fbR.gain, em > 0 ? (s.echoFeedback ?? 0.35) : 0);
+  const sh = s.shimmer || 0;
+  set(chain.shimSend.gain, sh * 0.8);
+  set(chain.shimFb.gain, sh * 0.55);
+  set(chain.shimOut.gain, sh * 1.2);
   const w = s.width ?? 1;
   const a = (1 + w) / 2, b = (1 - w) / 2;
   set(chain.wLL.gain, a); set(chain.wRR.gain, a);
@@ -155,7 +183,7 @@ function applySound(chain, s) {
     type: 'params',
     params: {
       length: s.length, release: s.release, brightness: s.brightness, sensitivity: s.sensitivity,
-      transpose: s.transpose, hands: [s.leftVolume, s.rightVolume], noise: s.noise,
+      transpose: s.transpose, hands: [s.leftVolume, s.rightVolume], noise: s.noise, pad: s.pad || 0,
     },
   });
 }

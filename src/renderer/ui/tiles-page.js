@@ -55,6 +55,7 @@ export function mountTilesPage(root, app) {
     if ('preset' in patch) syncPresets();
   };
   app.visualStyle = () => style;
+  app.setVisual = (patch) => setStyle(patch, true);
 
   function setAspect(a) {
     aspect = a;
@@ -185,7 +186,9 @@ export function mountTilesPage(root, app) {
     },
     notes: () => [
       sec(t('studio.noteShape'),
-        seg('noteStyle', [['capsule', t('ns.capsule')], ['neon', t('ns.neon')], ['soft', t('ns.soft')], ['glass', t('ns.glass')], ['pill', t('ns.pill')], ['flat', t('ns.flat')]]),
+        seg('noteStyle', [['capsule', t('ns.capsule')], ['neon', t('ns.neon')], ['liquid', t('ns.liquid')], ['soft', t('ns.soft')], ['glass', t('ns.glass')], ['pill', t('ns.pill')], ['flat', t('ns.flat')]], null, true),
+        row(t('studio.opacity'), range('opacity', 0.15, 1, 0.01, null, pct)),
+        style.noteStyle === 'liquid' ? row(t('studio.refract'), range('refract', 0, 1.6, 0.01)) : null,
         row(t('studio.noteWidth'), range('noteWidth', 0.4, 1, 0.01)),
         row(t('studio.core'), range('core', 0, 1.2, 0.01))),
       sec(t('tiles.colors'),
@@ -236,7 +239,7 @@ export function mountTilesPage(root, app) {
       sec(t('tiles.background'), row(t('tiles.guides'), toggle('guides'))),
     ],
     sound: () => [
-      h('div', { class: 'tp-sound' }, autoBtn(app), ui.slider('volume'), ...effectsBlock(ui)),
+      h('div', { class: 'tp-sound' }, autoBtn(app), ui.slider('volume'), ...effectsBlock(ui, app)),
     ],
   };
 

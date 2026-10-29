@@ -3,7 +3,7 @@ import { store } from './store.js';
 import { t, setLang } from './i18n.js';
 import { h } from './ui/dom.js';
 import { toast } from './ui/toast.js';
-import { Engine, DEFAULT_SOUND, wavFromBuffer } from './audio/engine.js';
+import { Engine, DEFAULT_SOUND, TIME_SOUND, wavFromBuffer } from './audio/engine.js';
 import { MidiInput } from './core/midi-input.js';
 import { Recorder, newId, finalize, emptyTake } from './core/take.js';
 import { assignHands } from './core/hands.js';
@@ -347,6 +347,13 @@ class App {
     if (on) fm.vst.load().catch(() => {});
     await this.updateSettings({ soundSource: on ? 'vst' : 'builtin' });
     store.set({ pianos: [...store.state.pianos] });
+  }
+
+  // Cinematic afterglow like Hans Zimmer's "Time", with an undo button.
+  timeSound() {
+    const before = { ...this.engine.sound };
+    this.setSound(TIME_SOUND);
+    toast(t('fx.time.done'), { action: t('auto.undo'), onAction: () => this.setSound(before), ms: 10000 });
   }
 
   // Analyses the open take and applies a matching sound, with an undo button.

@@ -333,6 +333,7 @@ footer.transport {
 .sound { display: grid; grid-template-columns: minmax(0, 1fr) 340px 340px; gap: 12px; height: 100%; }
 .ctl-top { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
 .ctl-top h2 { margin: 0 !important; }
+.time-btn { align-self: flex-start; margin: 4px 0 2px; border-color: color-mix(in srgb, var(--accent-2) 50%, var(--edge)); box-shadow: 0 0 18px color-mix(in srgb, var(--accent-2) 22%, transparent); }
 .auto-btn { gap: 8px; border-color: color-mix(in srgb, var(--accent) 45%, var(--edge)); box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 22%, transparent); white-space: nowrap; }
 .auto-btn svg { width: 17px; height: 17px; color: var(--accent); }
 .tp-sound .auto-btn { width: 100%; justify-content: center; margin-bottom: 6px; }
