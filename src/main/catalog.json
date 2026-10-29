@@ -1,0 +1,77 @@
+[
+  {
+    "id": "accurate-salamander",
+    "name": "Yamaha C5 — Accurate",
+    "piano": "Yamaha C5",
+    "character": { "ru": "Точный концертный звук: 16 уровней силы удара, резонанс педали, шум молоточков.", "en": "Precise concert tone: 16 velocity layers, pedal resonance, hammer noise." },
+    "sizeMB": 784,
+    "license": "CC BY 3.0",
+    "credit": "Accurate-Salamander Grand Piano — Chisato Yamauchi, based on Salamander Grand Piano by Alexander Holm",
+    "homepage": "https://www.ir.isas.jaxa.jp/~cyamauch/AccurateSalamander/",
+    "source": { "type": "teracloud", "share": "129179437b32d192", "file": "AccurateSalamanderGrandPianoV6.2a_48khz24bit_flac.zip" },
+    "sfz": "sfz_live/Accurate-SalamanderGrandPiano_flat.Recommended.sfz",
+    "cc": { "20": 127, "21": 127, "22": 127, "23": 127 },
+    "featured": true
+  },
+  {
+    "id": "moonlight-salamander",
+    "name": "Yamaha C5 — Moonlight",
+    "piano": "Yamaha C5",
+    "character": { "ru": "Мягкий, приглушённый ночной звук — для спокойных пьес.", "en": "Soft, muted night tone for quiet pieces." },
+    "sizeMB": 800,
+    "license": "CC BY 3.0",
+    "credit": "Moonlight-Salamander Grand Piano — Chisato Yamauchi",
+    "homepage": "https://www.ir.isas.jaxa.jp/~cyamauch/AccurateSalamander/",
+    "source": { "type": "teracloud", "share": "12917a5a1e8eb4b6" },
+    "sfz": "sfz_live/*flat.Recommended.sfz",
+    "cc": { "20": 127, "21": 127, "22": 127, "23": 127 }
+  },
+  {
+    "id": "maestro",
+    "name": "Yamaha CF-3 — Maestro",
+    "piano": "Yamaha CF-3",
+    "character": { "ru": "Большой концертный рояль, звонкий и открытый.", "en": "Large concert grand, bright and open." },
+    "sizeMB": 270,
+    "license": "Free (Mats Helgesson)",
+    "credit": "Maestro Concert Grand Piano — Mats Helgesson",
+    "homepage": "https://github.com/sfzinstruments/MatsHelgesson.MaestroConcertGrandPiano",
+    "source": { "type": "github", "repo": "sfzinstruments/MatsHelgesson.MaestroConcertGrandPiano", "branch": "master" },
+    "sfz": "Maestro Concert Grand.sfz"
+  },
+  {
+    "id": "splendid",
+    "name": "Steinway — Splendid",
+    "piano": "Steinway",
+    "character": { "ru": "Лёгкий Steinway: загружается за секунды, звучит чисто.", "en": "Lightweight Steinway: loads in seconds, sounds clean." },
+    "sizeMB": 77,
+    "license": "Public domain",
+    "credit": "Splendid Grand Piano — AKAI samples",
+    "homepage": "https://github.com/sfzinstruments/SplendidGrandPiano",
+    "source": { "type": "github", "repo": "sfzinstruments/SplendidGrandPiano", "branch": "master" },
+    "sfz": "Splendid Grand Piano.sfz"
+  },
+  {
+    "id": "headroom",
+    "name": "Yamaha C3 — Headroom",
+    "piano": "Yamaha C3",
+    "character": { "ru": "Тёплый камерный рояль, записан близко.", "en": "Warm chamber grand, recorded close." },
+    "sizeMB": 156,
+    "license": "CC BY 4.0",
+    "credit": "Headroom Piano — Bengt Nilsson",
+    "homepage": "https://github.com/sfzinstruments/BengtNilsson.HeadroomPiano",
+    "source": { "type": "github", "repo": "sfzinstruments/BengtNilsson.HeadroomPiano", "branch": "master" },
+    "sfz": "Headroom Piano (NoFX).sfz"
+  },
+  {
+    "id": "osiris",
+    "name": "Osiris — Natural",
+    "piano": "Osiris",
+    "character": { "ru": "Живой рояль с характером, немного винтажный.", "en": "Lively grand with character, slightly vintage." },
+    "sizeMB": 450,
+    "license": "CC0",
+    "credit": "Osiris Piano — Versilian Studios & Karoryfer Samples",
+    "homepage": "https://github.com/sfzinstruments/Osiris_Piano",
+    "source": { "type": "github", "repo": "sfzinstruments/Osiris_Piano", "branch": "main" },
+    "sfz": "Programs/01-natural.sfz"
+  }
+]

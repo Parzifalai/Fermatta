@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' app: fm: blob: data:; script-src 'self' app: 'wasm-unsafe-eval'; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: fm: blob: data:; media-src 'self' app: fm: blob:; connect-src 'self' app: fm: blob: data:; worker-src 'self' app: blob:">
+  <title>Fermatta</title>
+  <link rel="stylesheet" href="./styles/app.css">
+</head>
+<body>
+  <div id="app">
+    <header class="top">
+      <div class="wordmark" aria-label="Fermatta">
+        <svg viewBox="0 0 22 14" aria-hidden="true"><path d="M1.5 12.5 C 3 3, 19 3, 20.5 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="11" cy="11" r="1.9" fill="currentColor"/></svg>
+        <span>Fermatta</span>
+      </div>
+      <nav class="tabs" id="tabs"></nav>
+      <div class="top-right">
+        <div class="pedal-mark" id="pedal-mark"><i></i><span>Педаль</span></div>
+        <div class="midi-pill" id="midi-pill"><span class="dot"></span><span class="label"></span></div>
+        <button class="icon-btn" id="btn-settings" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+      </div>
+    </header>
+    <main class="view" id="view"></main>
+    <div class="keyboard-strip" id="keyboard"></div>
+    <footer class="transport" id="transport"></footer>
+  </div>
+  <div class="toast-stack" id="toasts" aria-live="polite"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
