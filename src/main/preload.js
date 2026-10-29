@@ -26,5 +26,6 @@ contextBridge.exposeInMainWorld('fm', {
     mp3: call('media:mp3'), mux: call('media:mux'), probe: call('media:probe'),
     extractAudio: call('media:extractAudio'), onProgress: on('media:progress'),
   },
+  sheet: { pdf: call('sheet:pdf') },
   pathOf: (file) => webUtils.getPathForFile(file),
 });

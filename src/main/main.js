@@ -178,6 +178,21 @@ function registerIpc() {
     const s = streams.get(id); streams.delete(id); s.end(res);
   }));
 
+  // Sheet music → PDF: a hidden window draws the score and prints it.
+  ipcMain.handle('sheet:pdf', async (_e, xml, out) => {
+    const w = new BrowserWindow({ show: false, width: 900, height: 1200, webPreferences: { sandbox: true } });
+    try {
+      await w.loadURL('app://fermatta/print.html');
+      await w.webContents.executeJavaScript(`renderScore(${JSON.stringify(xml)})`, true);
+      const pdf = await w.webContents.printToPDF({ pageSize: 'A4', printBackground: true, margins: { marginType: 'none' } });
+      await fsp.mkdir(path.dirname(out), { recursive: true });
+      await fsp.writeFile(out, pdf);
+      return out;
+    } finally {
+      w.destroy();
+    }
+  });
+
   ipcMain.handle('media:mp3', (_e, wav, out, meta) => media.toMp3(wav, out, meta));
   ipcMain.handle('media:mux', (_e, args) => media.mux(args, (p) => send('media:progress', p)));
   ipcMain.handle('media:probe', (_e, file) => media.probe(file));

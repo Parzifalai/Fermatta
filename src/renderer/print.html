@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Fermatta — ноты</title>
+  <style>
+    @page { size: A4; margin: 12mm 10mm; }
+    html, body { margin: 0; background: #fff; }
+    #score { width: 190mm; }
+  </style>
+  <script src="/node_modules/opensheetmusicdisplay/build/opensheetmusicdisplay.min.js"></script>
+</head>
+<body>
+  <div id="score"></div>
+  <script>
+    // Called by the main process: draws the MusicXML, page-sized, for printing to PDF.
+    window.renderScore = async (xml) => {
+      const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(document.getElementById('score'), {
+        autoResize: false, backend: 'svg', drawTitle: true, pageFormat: 'A4_P', pageBackgroundColor: '#FFFFFF',
+      });
+      await osmd.load(xml);
+      osmd.render();
+      return document.querySelectorAll('svg').length;
+    };
+  </script>
+</body>
+</html>

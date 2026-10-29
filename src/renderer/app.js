@@ -18,6 +18,9 @@ import './visual/strings.js';
 import { mountTilesPage, visualOf } from './ui/tiles-page.js';
 import { openVideoExport } from './visual/video-export.js';
 import { icon } from './ui/dom.js';
+import './notes-strings.js';
+import { mountNotesPage } from './ui/notes-page.js';
+import { parseMusicXML, readMxl, writeMusicXML } from './core/musicxml.js';
 
 const fm = window.fm;
 const TABS = ['takes', 'sound', 'notes', 'tiles', 'export'];
@@ -74,7 +77,15 @@ class App {
     this.pages.sound.ui = mountSoundPage(this.pages.sound.el, this);
     this.pages.export.ui = mountExportPage(this.pages.export.el, this);
     this.pages.tiles.ui = mountTilesPage(this.pages.tiles.el, this);
-    this.pages.notes.el.append(h('div', { class: 'placeholder-page' }, '…'));
+    this.pages.notes.ui = mountNotesPage(this.pages.notes.el, this);
+    this.registerImporter({
+      extensions: ['musicxml', 'xml', 'mxl'],
+      load: async (file, name) => {
+        const data = await fm.fs.readFile(file);
+        const text = file.toLowerCase().endsWith('.mxl') ? readMxl(new Uint8Array(data)) : new TextDecoder().decode(data);
+        return parseMusicXML(text, name);
+      },
+    });
     this.pages.export.ui.addSection((section) => section(t('export.video'), t('export.video.desc'), ['9:16', '16:9', '1:1'].map((a, i) =>
       h('button', { class: 'btn' + (i === 0 ? ' primary' : ''), onclick: () => openVideoExport(this, { aspect: a }) }, i === 0 ? icon('video') : null, a))));
     const pill = document.getElementById('midi-pill');
@@ -382,9 +393,21 @@ class App {
     await this.saveTake(take);
   }
 
+  // Records an edit that was already applied to the open take (snapshot = JSON before it).
+  async commitEdit(snapshot) {
+    this.undoStack.push(snapshot);
+    if (this.undoStack.length > 200) this.undoStack.shift();
+    this.redoStack = [];
+    await this.saveTake(store.state.take);
+  }
+
   async saveTake(take) {
-    const saved = await fm.library.save(take);
-    store.set({ take: saved });
+    take.modified = Date.now();
+    const d = take.notes.reduce((m, n) => Math.max(m, n.t + n.d), 0);
+    take.duration = Math.max(d, take.pedal.length ? take.pedal[take.pedal.length - 1].t : 0);
+    await fm.library.save(take);
+    // keep note objects (editor selections hold on to them)
+    store.set({ take: { ...take } });
     clearTimeout(this.listRefresh);
     this.listRefresh = setTimeout(() => this.reloadData(), 300);
   }
@@ -543,9 +566,38 @@ class App {
     toast(t('export.done', { file: out.split(/[\\/]/).pop() }), { action: t('export.show'), onAction: () => fm.shell.reveal(out) });
   }
 
+  sheetExportButtons() {
+    return [
+      h('button', { class: 'btn', onclick: () => this.exportSheet('musicxml') }, t('sheet.musicxml')),
+      h('button', { class: 'btn primary', onclick: () => this.exportSheet('pdf') }, icon('music'), t('sheet.pdf')),
+    ];
+  }
+
+  async exportSheet(kind) {
+    const take = store.state.take;
+    if (!take) return;
+    const ext = kind === 'pdf' ? 'pdf' : 'musicxml';
+    const out = await fm.dialog.save({ title: t('export.sheet'), defaultPath: `${this.exportBase()}.${ext}`, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
+    if (!out) return;
+    const xml = writeMusicXML(take, { bpm: take.bpm || 100, beats: take.beats, title: take.name });
+    const b = this.busy(t('sheet.making'));
+    b.set(0.4, '');
+    try {
+      if (kind === 'pdf') await fm.sheet.pdf(xml, out);
+      else await fm.fs.writeFile(out, new TextEncoder().encode(xml));
+      b.done();
+      toast(t('export.done', { file: out.split(/[\/]/).pop() }), { action: t('export.show'), onAction: () => fm.shell.reveal(out) });
+    } catch (e) {
+      b.done();
+      toast(t('export.failed', { e: e.message }), { error: true, ms: 8000 });
+    }
+  }
+
   // ---------- hotkeys ----------
   onHotkey(action) {
     const s = store.state;
+    const page = this.pages[s.tab]?.ui;
+    if (page?.hotkey && page.hotkey(action)) return;
     const rec = s.mode === 'recording' || s.mode === 'paused';
     switch (action) {
       case 'record':
