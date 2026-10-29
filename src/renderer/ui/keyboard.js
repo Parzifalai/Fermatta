@@ -1,5 +1,5 @@
 // The keyboard strip at the bottom of the window: lights up live and during playback.
-import { layout, isBlack, LOW, HIGH } from '../core/keys.js';
+import { layout, isBlack, LOW, HIGH, mix } from '../core/keys.js';
 import { h } from './dom.js';
 import { t } from '../i18n.js';
 
@@ -55,7 +55,7 @@ export class KeyboardStrip {
       const key = L.keys[k];
       const s = lit(k);
       const gr = g.createLinearGradient(0, top, 0, top + wh);
-      if (s) { gr.addColorStop(0, colorFor(s)); gr.addColorStop(1, '#ffffff'); }
+      if (s) { gr.addColorStop(0, colorFor(s)); gr.addColorStop(0.65, colorFor(s)); gr.addColorStop(1, mix(colorFor(s), '#ffffff', 0.45)); }
       else { gr.addColorStop(0, P.white2); gr.addColorStop(0.25, P.white); gr.addColorStop(1, P.white); }
       g.fillStyle = gr;
       roundRect(g, key.x + 1, top, key.w - 2, wh, 2, 2, 6, 6);
