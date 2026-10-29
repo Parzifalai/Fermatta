@@ -329,7 +329,7 @@ input[type='color']::-webkit-color-swatch { border: 0; border-radius: 4px; }
 .vx-format[aria-pressed='true'] { border-color: var(--ivory); background: var(--lacquer-3); }
 
 /* ---------- notes editor ---------- */
-.notes { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+.notes { display: grid; height: 100%; }
 .roll-toolbar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
 .tools { display: flex; gap: 2px; background: var(--lacquer); border: 1px solid var(--rule); border-radius: var(--r-s); padding: 2px; }
 .tool { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0; border-radius: 4px; background: none; color: var(--ivory-2); cursor: pointer; }
@@ -356,3 +356,21 @@ input[type='color']::-webkit-color-swatch { border: 0; border-radius: 4px; }
 .popover p { margin: 0 0 6px; font-size: 13px; }
 .popover .modal-foot { margin-top: 12px; }
 .check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ivory-2); margin-top: 6px; }
+
+/* ---------- comparison ---------- */
+.notes { grid-template-rows: auto auto minmax(0, 1fr); }
+.cmp-bar { display: flex; align-items: center; gap: 22px; padding: 10px 16px; border-bottom: 1px solid var(--rule); background: var(--lacquer-2); }
+.cmp-bar[hidden] { display: none; }
+.cmp-score { display: flex; align-items: baseline; gap: 10px; }
+.cmp-score b { font-size: 30px; font-weight: 500; }
+.cmp-legend { display: flex; gap: 14px; font-size: 13px; color: var(--ivory-2); }
+.lg { display: flex; align-items: center; gap: 6px; }
+.lg::before { content: ''; width: 12px; height: 8px; border-radius: 2px; border: 2px solid; }
+.lg.ok::before { border-color: transparent; background: var(--ivory-2); }
+.lg.wrong::before { border-color: #ff6b5e; }
+.lg.missing::before { border-color: var(--ivory); border-style: dashed; }
+.lg.extra::before { border-color: #ff9f43; border-style: dashed; }
+.cmp-actions { margin-left: auto; display: flex; gap: 8px; }
+.cmp-list { display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow-y: auto; }
+.cmp-item { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: var(--r-s); border: 1px solid transparent; background: none; color: var(--ivory); cursor: pointer; text-align: left; }
+.cmp-item:hover { background: var(--lacquer-3); border-color: var(--rule); }

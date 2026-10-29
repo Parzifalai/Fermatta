@@ -5,7 +5,7 @@ import { h } from './ui/dom.js';
 import { toast } from './ui/toast.js';
 import { Engine, DEFAULT_SOUND, wavFromBuffer } from './audio/engine.js';
 import { MidiInput } from './core/midi-input.js';
-import { Recorder, newId, finalize } from './core/take.js';
+import { Recorder, newId, finalize, emptyTake } from './core/take.js';
 import { parseMidi, writeMidi } from './core/smf.js';
 import { KeyboardStrip } from './ui/keyboard.js';
 import { mountTransport } from './ui/transport.js';
@@ -85,6 +85,11 @@ class App {
         const text = file.toLowerCase().endsWith('.mxl') ? readMxl(new Uint8Array(data)) : new TextDecoder().decode(data);
         return parseMusicXML(text, name);
       },
+    });
+    // audio or a video of someone playing → notes (AI piano transcription)
+    this.registerImporter({
+      extensions: ['mp3', 'wav', 'flac', 'm4a', 'ogg', 'aac', 'opus', 'mp4', 'mov', 'webm', 'mkv', 'avi'],
+      load: (file, name) => this.transcribeFile(file, name),
     });
     this.pages.export.ui.addSection((section) => section(t('export.video'), t('export.video.desc'), ['9:16', '16:9', '1:1'].map((a, i) =>
       h('button', { class: 'btn' + (i === 0 ? ' primary' : ''), onclick: () => openVideoExport(this, { aspect: a }) }, i === 0 ? icon('video') : null, a))));
@@ -480,25 +485,30 @@ class App {
   // ---------- import ----------
   registerImporter(imp) { this.importers.push(imp); }
 
+  importExtensions() { return ['mid', 'midi', ...this.importers.flatMap((i) => i.extensions)]; }
+
+  // Reads any supported file into a take (without saving it).
+  async loadFileAsTake(file) {
+    const name = file.split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
+    const ext = file.split('.').pop().toLowerCase();
+    if (ext === 'mid' || ext === 'midi') {
+      const data = await fm.fs.readFile(file);
+      return parseMidi(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength), name);
+    }
+    const imp = this.importers.find((i) => i.extensions.includes(ext));
+    if (!imp) throw new Error(t('err.unsupported'));
+    return imp.load(file, name);
+  }
+
   async importFile(paths) {
     if (!paths) {
-      const exts = ['mid', 'midi', ...this.importers.flatMap((i) => i.extensions)];
+      const exts = this.importExtensions();
       paths = await fm.dialog.open({ title: t('take.import'), properties: ['openFile'], filters: [{ name: 'Notes', extensions: exts }] });
       if (!paths) return;
     }
     for (const file of paths) {
-      const name = file.split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
-      const ext = file.split('.').pop().toLowerCase();
       try {
-        let take;
-        if (ext === 'mid' || ext === 'midi') {
-          const data = await fm.fs.readFile(file);
-          take = parseMidi(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength), name);
-        } else {
-          const imp = this.importers.find((i) => i.extensions.includes(ext));
-          if (!imp) throw new Error('unsupported');
-          take = await imp.load(file, name);
-        }
+        const take = await this.loadFileAsTake(file);
         if (!take) continue;
         await fm.library.save(take);
         await this.reloadData();
@@ -507,6 +517,31 @@ class App {
       } catch (e) {
         toast(t('err.generic', { e: e.message }), { error: true, ms: 7000 });
       }
+    }
+  }
+
+  async transcribeFile(file, name) {
+    const b = this.busy(t('tr.title'));
+    const label = { model: 'tr.model', decode: 'tr.decode', listen: 'tr.listen', notes: 'tr.notes' };
+    const weight = { model: [0, 0.3], decode: [0.3, 0.33], listen: [0.33, 0.97], notes: [0.97, 1] };
+    const off = fm.transcribe.onProgress((p) => {
+      const [a, z] = weight[p.stage] || [0, 1];
+      b.set(a + (z - a) * (p.ratio || 0), `${t(label[p.stage] || 'tr.listen')} ${Math.round((p.ratio || 0) * 100)}%`);
+    });
+    try {
+      const r = await fm.transcribe.file(file);
+      if (!r.notes.length) throw new Error(t('tr.empty'));
+      const take = emptyTake(name);
+      const video = /\.(mp4|mov|webm|mkv|avi)$/i.test(file);
+      take.source = video ? 'video' : 'audio';
+      take.media = { path: file, kind: take.source };
+      take.notes = r.notes;
+      take.pedal = r.pedal;
+      finalize(take);
+      return take;
+    } finally {
+      off();
+      b.done();
     }
   }
 

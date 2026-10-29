@@ -8,6 +8,7 @@ const settings = require('./settings');
 const library = require('./library');
 const pianos = require('./pianos');
 const media = require('./media');
+const transcriber = require('./transcribe');
 
 const ROOT = path.join(__dirname, '..', '..');
 
@@ -192,6 +193,9 @@ function registerIpc() {
       w.destroy();
     }
   });
+
+  ipcMain.handle('transcribe:file', (_e, file) => transcriber.transcribe(file, settings, (p) => send('transcribe:progress', p)));
+  ipcMain.handle('transcribe:ready', () => transcriber.modelReady(settings));
 
   ipcMain.handle('media:mp3', (_e, wav, out, meta) => media.toMp3(wav, out, meta));
   ipcMain.handle('media:mux', (_e, args) => media.mux(args, (p) => send('media:progress', p)));

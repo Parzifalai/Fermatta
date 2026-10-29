@@ -27,5 +27,6 @@ contextBridge.exposeInMainWorld('fm', {
     extractAudio: call('media:extractAudio'), onProgress: on('media:progress'),
   },
   sheet: { pdf: call('sheet:pdf') },
+  transcribe: { file: call('transcribe:file'), ready: call('transcribe:ready'), onProgress: on('transcribe:progress') },
   pathOf: (file) => webUtils.getPathForFile(file),
 });

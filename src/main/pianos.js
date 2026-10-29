@@ -267,4 +267,4 @@ async function remove(id) {
   await fsp.rm(pianoDir(id), { recursive: true, force: true });
 }
 
-module.exports = { init, catalog, install, cancel, remove, addCustom, buildPack, findFile };
+module.exports = { init, catalog, install, cancel, remove, addCustom, buildPack, findFile, download };

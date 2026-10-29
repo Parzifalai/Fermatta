@@ -35,7 +35,7 @@ const STR = {
     'export.midi': 'MIDI-файл', 'export.musicxml': 'MusicXML (MuseScore)', 'export.pdf': 'PDF с нотами', 'export.rendering': 'Сохраняем…', 'export.done': 'Готово: {file}', 'export.show': 'Показать в папке',
     'export.pickTake': 'Выберите запись слева или на вкладке «Записи».', 'export.failed': 'Не получилось сохранить: {e}',
     'common.cancel': 'Отмена', 'common.ok': 'Готово', 'common.save': 'Сохранить', 'common.yes': 'Да', 'common.no': 'Нет', 'common.undo': 'Отменить',
-    'err.noPiano': 'Рояль ещё не скачан', 'err.generic': 'Ошибка: {e}',
+    'err.noPiano': 'Рояль ещё не скачан', 'err.unsupported': 'Такой файл открыть нельзя', 'err.generic': 'Ошибка: {e}',
   },
   en: {
     'pedal': 'Pedal', 'nav.takes': 'Takes', 'nav.sound': 'Sound', 'nav.notes': 'Notes', 'nav.tiles': 'Tiles', 'nav.export': 'Export',
@@ -72,7 +72,7 @@ const STR = {
     'export.midi': 'MIDI file', 'export.musicxml': 'MusicXML (MuseScore)', 'export.pdf': 'PDF sheet music', 'export.rendering': 'Saving…', 'export.done': 'Saved: {file}', 'export.show': 'Show in folder',
     'export.pickTake': 'Pick a take on the left or on the Takes tab.', 'export.failed': 'Could not save: {e}',
     'common.cancel': 'Cancel', 'common.ok': 'Done', 'common.save': 'Save', 'common.yes': 'Yes', 'common.no': 'No', 'common.undo': 'Undo',
-    'err.noPiano': 'The piano is not downloaded yet', 'err.generic': 'Error: {e}',
+    'err.noPiano': 'The piano is not downloaded yet', 'err.unsupported': 'This file type cannot be opened', 'err.generic': 'Error: {e}',
   },
 };
 

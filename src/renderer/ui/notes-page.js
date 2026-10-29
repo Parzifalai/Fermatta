@@ -7,6 +7,7 @@ import { trackBeats, steadyBeats, snapTime, quantize } from '../core/tempo.js';
 import { assignHands } from '../core/hands.js';
 import { writeMusicXML } from '../core/musicxml.js';
 import { toast } from './toast.js';
+import { alignToScore } from '../core/score-align.js';
 
 const KEYS_W = 58;
 const RULER_H = 26;
@@ -19,7 +20,9 @@ export function mountNotesPage(root, app) {
   const sheet = h('div', { class: 'sheet-paper', hidden: true });
   const area = h('div', { class: 'roll-area' }, canvas, sheet);
   const toolbar = h('div', { class: 'roll-toolbar' });
-  root.append(h('div', { class: 'notes' }, toolbar, area));
+  const cmpBar = h('div', { class: 'cmp-bar', hidden: true });
+  root.append(h('div', { class: 'notes' }, toolbar, cmpBar, area));
+  let cmp = null; // comparison with written notes
 
   let tool = 'select';
   let division = +(store.state.settings.gridDivision ?? 4);
@@ -145,6 +148,33 @@ export function mountNotesPage(root, app) {
           g.fillStyle = 'rgba(15,14,18,.7)';
           g.font = '500 10px Golos Text';
           g.fillText(keyName(n.k), x + 4, y + view.rowH - 3);
+        }
+      }
+      g.restore();
+    }
+    // comparison marks
+    if (cmp && tk) {
+      g.save();
+      g.beginPath(); g.rect(KEYS_W, RULER_H, W - KEYS_W, gb - RULER_H); g.clip();
+      for (const m of cmp.result.marks) {
+        const x = xOf(m.t), w = Math.max(6, m.d * view.pps), y = yOf(m.k);
+        if (x > W || x + w < KEYS_W || y > gb || y + view.rowH < RULER_H) continue;
+        g.lineWidth = 2;
+        if (m.type === 'missing') {
+          g.setLineDash([4, 3]);
+          g.strokeStyle = 'rgba(236,229,211,.85)';
+          g.fillStyle = 'rgba(236,229,211,.12)';
+          rr(g, x + 0.5, y + 1, w - 1, view.rowH - 2, 3); g.fill(); g.stroke();
+          g.setLineDash([]);
+        } else {
+          g.strokeStyle = m.type === 'wrong' ? '#ff6b5e' : '#ff9f43';
+          if (m.type === 'extra') g.setLineDash([5, 3]);
+          rr(g, x - 1, y, w + 2, view.rowH, 4); g.stroke();
+          g.setLineDash([]);
+          if (m.type === 'wrong' && m.should != null) {
+            g.fillStyle = '#ff6b5e'; g.font = '600 10px Golos Text';
+            g.fillText('\u2192 ' + keyName(m.should), x + w + 4, y + view.rowH - 3);
+          }
         }
       }
       g.restore();
@@ -580,6 +610,7 @@ export function mountNotesPage(root, app) {
       h('div', { class: 'tb-right' },
         h('button', { class: 'btn quiet', disabled: !app.undoStack.length, title: 'Ctrl+Z', onclick: () => app.undo() }, icon('undo')),
         h('button', { class: 'btn quiet', disabled: !app.redoStack.length, title: 'Ctrl+Y', onclick: () => app.redo() }, icon('redo')),
+        h('button', { class: 'btn' + (cmp ? ' primary' : ''), title: t('cmp.hint'), onclick: openCompare }, t('cmp.button')),
         h('button', { class: 'btn' + (sheetMode ? ' primary' : ''), onclick: toggleSheet }, icon('music'), t('notes.sheet'))));
   }
 
@@ -588,6 +619,80 @@ export function mountNotesPage(root, app) {
     s.style.display = 'contents';
     s.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3l12 9-6 1 3 6-2 1-3-6-4 4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
     return s.firstChild;
+  }
+
+  // ---------- compare with written notes ----------
+  function openCompare() {
+    const tk = take();
+    if (!tk) return;
+    const back = h('div', { class: 'modal-back' });
+    const close = () => { back.remove(); app.hotkeys.suspended = false; };
+    back.addEventListener('mousedown', (e) => { if (e.target === back) close(); });
+    const others = store.state.takes.filter((x) => x.id !== tk.id);
+    const pick = async (getRef, name) => {
+      close();
+      try {
+        const ref = await getRef();
+        if (!ref || !ref.notes.length) return;
+        cmp = { result: alignToScore(tk, ref), name: name || ref.name };
+        renderCmp();
+        renderToolbar();
+        dirtyDraw = true;
+      } catch (e) { toast(t('err.generic', { e: e.message }), { error: true }); }
+    };
+    const list = h('div', { class: 'cmp-list' }, others.map((x) => h('button', { class: 'cmp-item', onclick: () => pick(() => window.fm.library.load(x.id), x.name) },
+      h('b', {}, x.name), h('span', { class: 'faint' }, t('cmp.src.' + (x.source || 'live'))))));
+    back.append(h('div', { class: 'modal', role: 'dialog' },
+      h('h2', {}, t('cmp.title')),
+      h('p', { class: 'muted' }, t('cmp.body')),
+      h('button', { class: 'btn primary', onclick: async () => {
+        const p = await window.fm.dialog.open({ properties: ['openFile'], filters: [{ name: 'Notes', extensions: ['mid', 'midi', 'musicxml', 'xml', 'mxl'] }] });
+        if (p) pick(() => app.loadFileAsTake(p[0]));
+      } }, icon('open'), t('cmp.openFile')),
+      others.length ? h('h3', {}, t('cmp.fromLibrary')) : null,
+      list,
+      h('div', { class: 'modal-foot' }, h('button', { class: 'btn quiet', onclick: close }, t('common.cancel')))));
+    document.body.append(back);
+    app.hotkeys.suspended = true;
+  }
+
+  // used by checks and by other screens
+  function compareWith(ref, name) {
+    cmp = { result: alignToScore(take(), ref), name: name || ref.name };
+    renderCmp(); renderToolbar(); dirtyDraw = true;
+    return cmp.result;
+  }
+
+  function renderCmp() {
+    cmpBar.hidden = !cmp;
+    if (!cmp) { cmpBar.replaceChildren(); return; }
+    const r = cmp.result;
+    cmpBar.replaceChildren(
+      h('div', { class: 'cmp-score' }, h('b', { class: 'serif' }, r.accuracy + '%'), h('span', { class: 'muted' }, t('cmp.vs', { name: cmp.name }))),
+      h('div', { class: 'cmp-legend' },
+        h('span', { class: 'lg ok' }, t('cmp.correct', { n: r.correct })),
+        h('span', { class: 'lg wrong' }, t('cmp.wrong', { n: r.wrong })),
+        h('span', { class: 'lg missing' }, t('cmp.missing', { n: r.missing })),
+        h('span', { class: 'lg extra' }, t('cmp.extra', { n: r.extra }))),
+      h('div', { class: 'cmp-actions' },
+        h('button', { class: 'btn primary', disabled: !(r.wrong + r.missing + r.extra), onclick: fixAll }, t('cmp.fix')),
+        h('button', { class: 'btn quiet', onclick: () => { cmp = null; renderCmp(); renderToolbar(); dirtyDraw = true; } }, t('cmp.close'))));
+  }
+
+  function fixAll() {
+    const tk = take();
+    if (!tk || !cmp) return;
+    const snap0 = snapshot();
+    const fixed = cmp.result.fixed();
+    tk.notes = fixed.notes;
+    tk.beats = null;
+    tk.handsManual = fixed.handsManual;
+    if (!fixed.handsManual) assignHands(tk.notes);
+    selection.clear();
+    cmp = null;
+    renderCmp();
+    commit(snap0);
+    toast(t('cmp.fixed'));
   }
 
   // ---------- sheet music view ----------
@@ -620,6 +725,8 @@ export function mountNotesPage(root, app) {
       if (tk?.id !== lastId) {
         lastId = tk?.id;
         selection.clear();
+        cmp = null;
+        renderCmp();
         if (tk) {
           ensureTempo(tk);
           const ks = tk.notes.map((n) => n.k);
@@ -650,7 +757,7 @@ export function mountNotesPage(root, app) {
   }
 
   renderToolbar();
-  return { tick, hotkey, show: () => { dirtyDraw = true; canvas.focus(); }, renderSheet, toggleSheet };
+  return { tick, hotkey, show: () => { dirtyDraw = true; canvas.focus(); }, renderSheet, toggleSheet, compareWith, fixAll };
 }
 
 // ---------- pedal helpers ----------
