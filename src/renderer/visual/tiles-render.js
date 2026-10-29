@@ -260,7 +260,7 @@ export class TilesRenderer {
         if (S.noteNames && r.h > 18 * G.unit && r.w > 10 * G.unit) {
           g.globalAlpha = 0.85;
           g.fillStyle = 'rgba(10,10,12,.75)';
-          g.font = `600 ${Math.round(Math.min(r.w * 0.55, 15 * G.unit))}px Golos Text, sans-serif`;
+          g.font = `600 ${Math.round(Math.min(r.w * 0.55, 15 * G.unit))}px Manrope, sans-serif`;
           g.textAlign = 'center';
           g.fillText(['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][n.k % 12], r.x + r.w / 2, r.y + r.h - 6 * G.unit);
         }

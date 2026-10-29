@@ -24,8 +24,8 @@ export function mountTakesPage(root, app) {
   const trashBtn = h('button', { class: 'btn quiet', onclick: () => app.toggleTrash() });
   const count = h('span', { class: 'faint' });
   const foot = h('div', { class: 'list-foot' }, count, trashBtn);
-  const list = h('section', { class: 'takes-list' }, tools, scroll, foot);
-  const detail = h('section', { class: 'take-detail' });
+  const list = h('section', { class: 'takes-list glass' }, tools, scroll, foot);
+  const detail = h('section', { class: 'take-detail glass' });
   root.append(h('div', { class: 'takes' }, list, detail));
   search.addEventListener('input', renderList);
 
@@ -61,7 +61,7 @@ export function mountTakesPage(root, app) {
     }
     if (!items.length && s.showTrash) scroll.append(h('div', { class: 'day-label' }, t('takes.trashEmpty')));
     trashBtn.textContent = s.showTrash ? t('takes.back') : `${t('takes.trash')}${s.trash.length ? ` (${s.trash.length})` : ''}`;
-    count.textContent = s.showTrash ? '' : s.takes.length ? `${s.takes.length}` : '';
+    count.textContent = '';
   }
 
   function renderDetail() {
@@ -87,11 +87,15 @@ export function mountTakesPage(root, app) {
     titleInput.addEventListener('change', () => app.renameTake(titleInput.value));
     const date = new Date(take.created).toLocaleString(getLang() === 'ru' ? 'ru-RU' : 'en-GB', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
     const left = take.notes.filter((n) => n.h === 0).length;
+    const colors = app.handColors();
+    const ru = getLang() === 'ru';
     const facts = h('div', { class: 'take-facts' },
       h('span', {}, date),
       h('span', {}, h('b', { class: 'num' }, fmtTime(take.duration))),
       h('span', {}, notesWord(take.notes.length)),
-      h('span', {}, getLang() === 'ru' ? `левая рука ${left}, правая ${take.notes.length - left}` : `left hand ${left}, right ${take.notes.length - left}`));
+      h('span', {}, h('i', { style: { background: colors.lh, boxShadow: `0 0 8px ${colors.lh}` } }), `${ru ? 'левая' : 'left'} ${left}`),
+      h('span', {}, h('i', { style: { background: colors.rh, boxShadow: `0 0 8px ${colors.rh}` } }), `${ru ? 'правая' : 'right'} ${take.notes.length - left}`),
+      take.bpm ? h('span', {}, `${ru ? 'темп' : 'tempo'} ${Math.round(take.bpm)}`) : null);
     rollCanvas = h('canvas');
     rollCanvas.addEventListener('click', (e) => {
       const r = rollCanvas.getBoundingClientRect();

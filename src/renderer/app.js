@@ -23,6 +23,20 @@ import { mountNotesPage } from './ui/notes-page.js';
 import { parseMusicXML, readMxl, writeMusicXML } from './core/musicxml.js';
 
 const fm = window.fm;
+
+const NAV_ICONS = {
+  takes: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/>',
+  sound: '<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/>',
+  notes: '<path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+  tiles: '<path d="M6 3v9M12 3v5M18 3v12"/><rect x="3" y="15" width="18" height="6" rx="1.5"/>',
+  export: '<path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/>',
+};
+function navIcon(id) {
+  const s = document.createElement('span');
+  s.style.display = 'contents';
+  s.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_ICONS[id]}</svg>`;
+  return s.firstChild;
+}
 const TABS = ['takes', 'sound', 'notes', 'tiles', 'export'];
 
 class App {
@@ -42,6 +56,7 @@ class App {
     const settings = await fm.settings.get();
     setLang(settings.language);
     store.set({ settings });
+    this.applyTheme(settings.theme || 'aurora', false);
     this.engine.sound = { ...DEFAULT_SOUND, ...settings.sound };
     this.buildFrame();
     this.hotkeys = new Hotkeys(settings.hotkeys, (a, e) => this.onHotkey(a, e));
@@ -62,7 +77,7 @@ class App {
     const view = document.getElementById('view');
     this.tabButtons = {};
     for (const id of TABS) {
-      const b = h('button', { onclick: () => this.go(id) }, t('nav.' + id));
+      const b = h('button', { onclick: () => this.go(id), title: t('nav.' + id) }, navIcon(id), h('span', {}, t('nav.' + id)));
       this.tabButtons[id] = b;
       tabs.append(b);
       const page = h('div', { class: 'page', id: 'page-' + id });
@@ -71,6 +86,15 @@ class App {
     }
     document.getElementById('btn-settings').addEventListener('click', () => openSettings(this));
     document.getElementById('btn-settings').title = t('settings.title');
+    const themeBtn = document.getElementById('btn-theme');
+    themeBtn.addEventListener('click', () => this.setTheme(this.theme === 'aurora' ? 'stage' : 'aurora'));
+    this.renderThemeButton = () => {
+      themeBtn.title = t('theme.switch', { name: t('theme.' + (this.theme === 'aurora' ? 'stage' : 'aurora')) });
+      themeBtn.innerHTML = this.theme === 'aurora'
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3v3M5 21h14M8 21l4-12 4 12"/><path d="M6.5 7.5 12 6l5.5 1.5" opacity=".5"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 15c3-6 6-9 9-9s6 3 9 9"/><path d="M5 19c2.5-3.5 4.5-5 7-5s4.5 1.5 7 5" opacity=".6"/></svg>';
+    };
+    this.renderThemeButton();
     this.keyboard = new KeyboardStrip(document.getElementById('keyboard'));
     this.transport = mountTransport(document.getElementById('transport'), this);
     this.pages.takes.ui = mountTakesPage(this.pages.takes.el, this);
@@ -126,8 +150,29 @@ class App {
     }
     const prev = store.state.tab;
     document.getElementById('keyboard').hidden = tab === 'tiles';
+    document.getElementById('page-title').textContent = t('title.' + tab);
     store.set({ tab });
     if (prev !== tab) { this.pages[prev]?.ui?.hide?.(); this.pages[tab]?.ui?.show?.(); }
+  }
+
+  // ---------- themes ----------
+  applyTheme(name, animate = true) {
+    const set = () => {
+      this.theme = name === 'stage' ? 'stage' : 'aurora';
+      document.documentElement.dataset.theme = this.theme;
+      this.renderThemeButton?.();
+      this.keyboard && (this.keyboard.dirty = true);
+      document.dispatchEvent(new CustomEvent('fermatta:theme', { detail: this.theme }));
+    };
+    // the whole window cross-fades from one theme to the other
+    if (animate && document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.startViewTransition(set);
+    else set();
+  }
+
+  async setTheme(name) {
+    const theme = name === 'stage' ? 'stage' : 'aurora';
+    this.applyTheme(theme);
+    await this.updateSettings({ theme });
   }
 
   handColors() {

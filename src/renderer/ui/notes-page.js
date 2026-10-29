@@ -21,7 +21,7 @@ export function mountNotesPage(root, app) {
   const area = h('div', { class: 'roll-area' }, canvas, sheet);
   const toolbar = h('div', { class: 'roll-toolbar' });
   const cmpBar = h('div', { class: 'cmp-bar', hidden: true });
-  root.append(h('div', { class: 'notes' }, toolbar, cmpBar, area));
+  root.append(h('div', { class: 'notes glass' }, toolbar, cmpBar, area));
   let cmp = null; // comparison with written notes
 
   let tool = 'select';
@@ -93,7 +93,17 @@ export function mountNotesPage(root, app) {
   }
 
   // ---------- drawing ----------
+  let P = null; // palette from the current theme
+  const palette = () => {
+    const cs = getComputedStyle(document.documentElement);
+    const v = (n) => cs.getPropertyValue(n).trim();
+    P = { bg: v('--cv-bg'), rowW: v('--cv-row-white'), rowB: v('--cv-row-black'), line: v('--cv-line'), bar: v('--cv-bar'), text: v('--cv-text'), ink: v('--ink'),
+      keyW: v('--key-white'), keyB: v('--key-black'), lane: 'rgba(0,0,0,.14)', accent: v('--accent') };
+  };
+  document.addEventListener('fermatta:theme', () => { palette(); dirtyDraw = true; });
+
   function draw() {
+    if (!P) palette();
     const { W, H } = size();
     if (!W || !H || sheetMode) return;
     const dpr = window.devicePixelRatio || 1;
@@ -103,16 +113,17 @@ export function mountNotesPage(root, app) {
     const tk = take();
     const colors = app.handColors();
     const gb = gridBottom();
-    g.fillStyle = '#121115';
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = P.bg;
     g.fillRect(0, 0, W, H);
 
     // rows
     for (let k = Math.floor(view.kTop - (gb - RULER_H) / view.rowH) - 1; k <= view.kTop + 1; k++) {
       const y = yOf(k);
       if (y > gb || y + view.rowH < RULER_H) continue;
-      g.fillStyle = isBlack(k) ? '#16151a' : '#1b1a20';
+      g.fillStyle = isBlack(k) ? P.rowB : P.rowW;
       g.fillRect(KEYS_W, y, W - KEYS_W, view.rowH);
-      if (k % 12 === 0) { g.fillStyle = '#2c2833'; g.fillRect(KEYS_W, y + view.rowH - 1, W - KEYS_W, 1); }
+      if (k % 12 === 0) { g.fillStyle = P.line; g.fillRect(KEYS_W, y + view.rowH - 1, W - KEYS_W, 1); }
     }
     // grid
     const beats = beatsOf(tk);
@@ -122,10 +133,10 @@ export function mountNotesPage(root, app) {
       const b0 = beats[i], b1 = beats[i + 1];
       if (b1 < tA || b0 > tB) continue;
       const bar = (((i - db) % 4) + 4) % 4 === 0;
-      g.fillStyle = bar ? '#3a3542' : '#2a2730';
+      g.fillStyle = bar ? P.bar : P.line;
       g.fillRect(Math.round(xOf(b0)), RULER_H, 1, gb - RULER_H);
       if (division > 1 && (b1 - b0) * view.pps / division > 9) {
-        g.fillStyle = '#211f26';
+        g.fillStyle = P.rowB;
         for (let j = 1; j < division; j++) g.fillRect(Math.round(xOf(b0 + ((b1 - b0) * j) / division)), RULER_H, 1, gb - RULER_H);
       }
     }
@@ -139,14 +150,16 @@ export function mountNotesPage(root, app) {
         const sel = selection.has(n);
         g.globalAlpha = 0.45 + (n.v / 127) * 0.55;
         g.fillStyle = n.h === 0 ? colors.lh : colors.rh;
+        g.shadowColor = g.fillStyle; g.shadowBlur = 8;
         rr(g, x + 0.5, y + 1, w - 1, view.rowH - 2, 3);
         g.fill();
+        g.shadowBlur = 0;
         g.globalAlpha = 1;
         if (sel) { g.strokeStyle = '#ffffff'; g.lineWidth = 1.5; rr(g, x + 0.5, y + 1, w - 1, view.rowH - 2, 3); g.stroke(); }
         if (n.hLock) { g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(x + 2, y + view.rowH / 2 - 1, 3, 2); }
         if (w > 30 && view.rowH >= 12) {
           g.fillStyle = 'rgba(15,14,18,.7)';
-          g.font = '500 10px Golos Text';
+          g.font = '700 10px Manrope';
           g.fillText(keyName(n.k), x + 4, y + view.rowH - 3);
         }
       }
@@ -172,7 +185,7 @@ export function mountNotesPage(root, app) {
           rr(g, x - 1, y, w + 2, view.rowH, 4); g.stroke();
           g.setLineDash([]);
           if (m.type === 'wrong' && m.should != null) {
-            g.fillStyle = '#ff6b5e'; g.font = '600 10px Golos Text';
+            g.fillStyle = '#ff6b7e'; g.font = '700 10px Manrope';
             g.fillText('\u2192 ' + keyName(m.should), x + w + 4, y + view.rowH - 3);
           }
         }
@@ -188,29 +201,33 @@ export function mountNotesPage(root, app) {
       g.strokeRect(x + 0.5, y + 0.5, Math.abs(drag.x1 - drag.x0), Math.abs(drag.y1 - drag.y0));
     }
     // keys column
+    g.save();
+    g.beginPath(); g.rect(0, RULER_H, KEYS_W, gb - RULER_H); g.clip();
     for (let k = Math.floor(view.kTop - (gb - RULER_H) / view.rowH) - 1; k <= view.kTop + 1; k++) {
       const y = yOf(k);
       if (y > gb || y + view.rowH < RULER_H) continue;
-      g.fillStyle = isBlack(k) ? '#1b1a1f' : '#e6dfcc';
+      g.fillStyle = isBlack(k) ? P.keyB : P.keyW;
       g.fillRect(0, y, KEYS_W - 1, view.rowH - (isBlack(k) ? 0 : 1));
-      if (hover && hover.key === k) { g.fillStyle = 'rgba(201,163,90,.5)'; g.fillRect(0, y, KEYS_W - 1, view.rowH); }
-      if (k % 12 === 0) { g.fillStyle = '#6b655a'; g.font = '600 10px Golos Text'; g.fillText(keyName(k), KEYS_W - 26, y + view.rowH - 3); }
+      if (hover && hover.key === k) { g.fillStyle = P.accent; g.globalAlpha = .55; g.fillRect(0, y, KEYS_W - 1, view.rowH); g.globalAlpha = 1; }
+      if (k % 12 === 0) { g.fillStyle = 'rgba(30,20,50,.55)'; g.font = '700 10px Manrope'; g.fillText(keyName(k), KEYS_W - 26, y + view.rowH - 3); }
     }
+    g.restore();
     // velocity lane
     const vy = gb + PED_H;
-    g.fillStyle = '#16151a'; g.fillRect(0, gb, W, H - gb);
-    g.fillStyle = '#2c2833'; g.fillRect(0, gb, W, 1); g.fillRect(0, vy, W, 1);
-    g.fillStyle = '#7b7468'; g.font = '500 11px Golos Text';
+    g.fillStyle = P.lane; g.fillRect(0, gb, W, H - gb);
+    g.fillStyle = P.line; g.fillRect(0, gb, W, 1); g.fillRect(0, vy, W, 1);
+    g.fillStyle = P.text; g.font = '700 11px Manrope';
     g.fillText(t('pedal'), 8, gb + 17);
     g.fillText(t('notes.velocity'), 8, vy + 17);
     if (tk) {
       // pedal
-      g.fillStyle = 'rgba(201,163,90,.55)';
+      g.fillStyle = P.accent; g.globalAlpha = .55;
       const intervals = pedalIntervals(tk.pedal);
       for (const [a, b] of intervals) {
         const x1 = Math.max(KEYS_W, xOf(a)), x2 = Math.min(W, xOf(b));
         if (x2 > x1) g.fillRect(x1, gb + 6, x2 - x1, PED_H - 12);
       }
+      g.globalAlpha = 1;
       // velocity stems
       for (const n of tk.notes) {
         const x = xOf(n.t);
@@ -224,9 +241,9 @@ export function mountNotesPage(root, app) {
       g.globalAlpha = 1;
     }
     // ruler
-    g.fillStyle = '#17161b'; g.fillRect(0, 0, W, RULER_H);
-    g.fillStyle = '#2c2833'; g.fillRect(0, RULER_H - 1, W, 1);
-    g.fillStyle = '#9a9384'; g.font = '500 11px Golos Text';
+    g.fillStyle = P.lane; g.fillRect(0, 0, W, RULER_H);
+    g.fillStyle = P.line; g.fillRect(0, RULER_H - 1, W, 1);
+    g.fillStyle = P.text; g.font = '700 11px Manrope';
     for (let i = db; i < beats.length; i += 4) {
       const x = xOf(beats[i]);
       if (x < KEYS_W - 20 || x > W) continue;
@@ -237,11 +254,11 @@ export function mountNotesPage(root, app) {
     const pos = app.position();
     const px = xOf(pos);
     if (px >= KEYS_W && px <= W) {
-      g.fillStyle = '#ece5d3';
+      g.fillStyle = P.ink;
       g.fillRect(Math.round(px), 0, 1.5, H);
       g.beginPath(); g.moveTo(px - 5, 0); g.lineTo(px + 6, 0); g.lineTo(px + 0.5, 7); g.fill();
     }
-    g.fillStyle = '#121115'; g.fillRect(0, 0, KEYS_W, RULER_H);
+    g.clearRect(0, 0, KEYS_W, RULER_H);
   }
 
   // ---------- editing helpers ----------
@@ -588,7 +605,7 @@ export function mountNotesPage(root, app) {
 
   function renderToolbar() {
     const tk = take();
-    const tb = (id, label, ic, key) => h('button', { class: 'tool' + (tool === id ? ' on' : ''), title: `${label} (${key})`, onclick: () => setTool(id) }, ic, h('span', {}, label));
+    const tb = (id, label, ic, key) => h('button', { class: 'tool' + (tool === id ? ' on' : ''), title: `${label} (${key})`, 'aria-label': label, onclick: () => setTool(id) }, ic);
     const grid = h('select', { title: t('notes.grid') }, GRIDS.map(([v, l]) => h('option', { value: v, selected: +v === division }, l.startsWith('notes.') ? t(l) : l)));
     grid.addEventListener('change', () => { division = +grid.value; app.updateSettings({ gridDivision: division }); dirtyDraw = true; });
     const bpm = h('input', { type: 'number', class: 'bpm', min: 20, max: 400, step: 1, value: tk?.bpm ? Math.round(tk.bpm) : 120, title: t('notes.bpm') });
@@ -599,7 +616,7 @@ export function mountNotesPage(root, app) {
         tb('select', t('notes.tool.select'), cursorIcon(), 'V'),
         tb('draw', t('notes.tool.draw'), icon('edit'), 'B'),
         tb('erase', t('notes.tool.erase'), icon('close'), 'E')),
-      h('label', { class: 'tb-field' }, t('notes.grid'), grid),
+      h('label', { class: 'tb-field', title: t('notes.grid') }, grid),
       h('label', { class: 'tb-field' }, bpm, h('span', { class: 'faint' }, t('notes.bpmUnit'))),
       h('button', { class: 'btn quiet', title: t('notes.detect.hint'), onclick: detectTempo }, t('notes.detect')),
       alignBtn,

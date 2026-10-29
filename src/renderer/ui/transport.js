@@ -10,7 +10,7 @@ export function mountTransport(root, app) {
   const recGroup = h('div', { class: 'tp-buttons' }, rec, pauseBtn);
 
   const playIcon = h('span', { style: { display: 'contents' } }, icon('play'));
-  const play = h('button', { class: 'icon-btn', onclick: () => app.togglePlay() }, playIcon);
+  const play = h('button', { class: 'icon-btn big', onclick: () => app.togglePlay() }, playIcon);
   const stop = h('button', { class: 'icon-btn', onclick: () => app.stopAll() }, icon('stop'));
   const back = h('button', { class: 'icon-btn', onclick: () => app.seekBy(-5) }, icon('back'));
   const fwd = h('button', { class: 'icon-btn', onclick: () => app.seekBy(5) }, icon('fwd'));

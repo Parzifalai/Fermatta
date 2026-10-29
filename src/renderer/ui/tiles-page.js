@@ -22,8 +22,8 @@ export function mountTilesPage(root, app) {
   const aspectSeg = h('div', { class: 'seg' }, Object.keys(ASPECTS).map((a) => h('button', { 'data-a': a, onclick: () => setAspect(a) }, a)));
   const fsBtn = h('button', { class: 'btn quiet', onclick: () => frame.requestFullscreen?.() }, t('tiles.fullscreen'));
   const head = h('div', { class: 'tiles-head' }, aspectSeg, h('span', { class: 'faint tiles-hint' }, t('tiles.hint')), fsBtn);
-  const left = h('section', { class: 'tiles-left' }, head, stage);
-  const panel = h('section', { class: 'tiles-panel' });
+  const left = h('section', { class: 'tiles-left glass' }, head, stage);
+  const panel = h('section', { class: 'tiles-panel glass' });
   root.append(h('div', { class: 'tiles' }, left, panel));
 
   let style = visualOf(store.state.settings);
@@ -191,7 +191,7 @@ export function mountTilesPage(root, app) {
     renderer.draw(g, W, H, time, style);
     if (!take) {
       g.fillStyle = 'rgba(236,229,211,.7)';
-      g.font = `500 ${Math.round(H * 0.035)}px Golos Text`;
+      g.font = `500 ${Math.round(H * 0.035)}px Manrope`;
       g.textAlign = 'center';
       g.fillText(t('export.pickTake'), W / 2, H * 0.42);
     }

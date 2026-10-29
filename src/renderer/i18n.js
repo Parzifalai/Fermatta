@@ -1,7 +1,9 @@
 // Interface strings, Russian and English.
 const STR = {
   ru: {
-    'pedal': 'Педаль', 'nav.takes': 'Записи', 'nav.sound': 'Звук', 'nav.notes': 'Ноты', 'nav.tiles': 'Плитки', 'nav.export': 'Экспорт',
+    'pedal': 'Педаль', 'title.takes': 'Записи', 'title.sound': 'Звук', 'title.notes': 'Ноты', 'title.tiles': 'Падающие ноты', 'title.export': 'Экспорт',
+    'theme.aurora': 'Аврора', 'theme.stage': 'Сцена', 'theme.switch': 'Тема «{name}»', 'settings.theme': 'Тема',
+    'nav.takes': 'Записи', 'nav.sound': 'Звук', 'nav.notes': 'Ноты', 'nav.tiles': 'Плитки', 'nav.export': 'Экспорт',
     'midi.none': 'Пианино не подключено', 'midi.connected': '{name}', 'midi.hint': 'Подключите пианино кабелем USB — оно появится здесь само.',
     'rec.start': 'Записать', 'rec.stop': 'Остановить запись', 'rec.pause': 'Пауза', 'rec.resume': 'Продолжить', 'rec.waiting': 'Ждём первую ноту…', 'rec.recording': 'Идёт запись',
     'rec.saved': 'Запись «{name}» сохранена', 'rec.empty': 'Ни одной ноты — запись не сохранена', 'rec.paused': 'Запись на паузе',
@@ -38,7 +40,9 @@ const STR = {
     'err.noPiano': 'Рояль ещё не скачан', 'err.unsupported': 'Такой файл открыть нельзя', 'err.generic': 'Ошибка: {e}',
   },
   en: {
-    'pedal': 'Pedal', 'nav.takes': 'Takes', 'nav.sound': 'Sound', 'nav.notes': 'Notes', 'nav.tiles': 'Tiles', 'nav.export': 'Export',
+    'pedal': 'Pedal', 'title.takes': 'Takes', 'title.sound': 'Sound', 'title.notes': 'Notes', 'title.tiles': 'Falling notes', 'title.export': 'Export',
+    'theme.aurora': 'Aurora', 'theme.stage': 'Stage', 'theme.switch': '{name} theme', 'settings.theme': 'Theme',
+    'nav.takes': 'Takes', 'nav.sound': 'Sound', 'nav.notes': 'Notes', 'nav.tiles': 'Tiles', 'nav.export': 'Export',
     'midi.none': 'No piano connected', 'midi.connected': '{name}', 'midi.hint': 'Connect your piano with a USB cable — it will show up here.',
     'rec.start': 'Record', 'rec.stop': 'Stop recording', 'rec.pause': 'Pause', 'rec.resume': 'Resume', 'rec.waiting': 'Waiting for the first note…', 'rec.recording': 'Recording',
     'rec.saved': 'Saved “{name}”', 'rec.empty': 'No notes played — nothing saved', 'rec.paused': 'Recording paused',

@@ -20,6 +20,13 @@ export function openSettings(app) {
   const lang = h('div', { class: 'seg' },
     ['ru', 'en'].map((l) => h('button', { 'aria-pressed': String(getLang() === l), onclick: () => app.setLanguage(l) }, l === 'ru' ? 'Русский' : 'English')));
 
+  const themeSeg = h('div', { class: 'seg' }, ['aurora', 'stage'].map((th) => h('button', {
+    'aria-pressed': String((store.state.settings.theme || 'aurora') === th),
+    onclick: async (e) => {
+      for (const b of themeSeg.children) b.setAttribute('aria-pressed', String(b === e.currentTarget));
+      await app.setTheme(th);
+    },
+  }, t('theme.' + th))));
   const inputs = app.midi.inputs();
   const midiSel = h('select', {},
     h('option', { value: '' }, getLang() === 'ru' ? 'Автоматически' : 'Automatic'),
@@ -67,6 +74,7 @@ export function openSettings(app) {
   const modal = h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('settings.title'), tabindex: -1 },
     h('h2', {}, t('settings.title')),
     h('div', { class: 'set-row' }, h('div', {}, t('settings.language')), lang),
+    h('div', { class: 'set-row' }, h('div', {}, t('settings.theme')), themeSeg),
     h('h3', {}, t('settings.midi')),
     h('div', { class: 'set-row' }, h('div', {}, store.state.midi.ok ? store.state.midi.name : t('midi.none')), midiSel),
     h('div', { class: 'set-row' },

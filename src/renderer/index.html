@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-theme="aurora">
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' app: fm: blob: data:; script-src 'self' app: 'wasm-unsafe-eval'; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: fm: blob: data:; media-src 'self' app: fm: blob:; connect-src 'self' app: fm: blob: data:; worker-src 'self' app: blob:">
@@ -7,22 +7,33 @@
   <link rel="stylesheet" href="./styles/app.css">
 </head>
 <body>
+  <div class="backdrop" aria-hidden="true">
+    <div class="aurora"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div></div>
+    <div class="stage"><div class="spot"></div><div class="beam"></div><div class="floor"></div><div class="cool"></div></div>
+  </div>
+  <div class="grain" aria-hidden="true"></div>
   <div id="app">
-    <header class="top">
-      <div class="wordmark" aria-label="Fermatta">
-        <svg viewBox="0 0 22 14" aria-hidden="true"><path d="M1.5 12.5 C 3 3, 19 3, 20.5 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="11" cy="11" r="1.9" fill="currentColor"/></svg>
-        <span>Fermatta</span>
+    <aside class="side glass">
+      <div class="mark" aria-label="Fermatta" title="Fermatta">
+        <svg viewBox="0 0 22 14" aria-hidden="true"><path d="M1.5 12.5 C 3 3, 19 3, 20.5 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="11" cy="11" r="2" fill="currentColor"/></svg>
       </div>
       <nav class="tabs" id="tabs"></nav>
-      <div class="top-right">
-        <div class="pedal-mark" id="pedal-mark"><i></i><span>Педаль</span></div>
-        <div class="midi-pill" id="midi-pill"><span class="dot"></span><span class="label"></span></div>
-        <button class="icon-btn" id="btn-settings" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
-      </div>
-    </header>
-    <main class="view" id="view"></main>
-    <div class="keyboard-strip" id="keyboard"></div>
-    <footer class="transport" id="transport"></footer>
+      <div class="spacer"></div>
+      <button class="side-btn" id="btn-theme"></button>
+      <button class="side-btn" id="btn-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg></button>
+    </aside>
+    <section class="main-col">
+      <header class="top">
+        <h1 id="page-title"></h1>
+        <div class="top-right">
+          <div class="pedal-mark" id="pedal-mark"><i></i><span>Педаль</span></div>
+          <div class="midi-pill" id="midi-pill"><span class="dot"></span><span class="label"></span></div>
+        </div>
+      </header>
+      <main class="view" id="view"></main>
+      <div class="keyboard-strip glass" id="keyboard"></div>
+      <footer class="transport glass" id="transport"></footer>
+    </section>
   </div>
   <div class="toast-stack" id="toasts" aria-live="polite"></div>
   <script type="module" src="./app.js"></script>

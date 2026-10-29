@@ -26,7 +26,7 @@ const signed = (v) => (v > 0 ? '+' : '') + Math.round(v * 100);
 export function mountSoundPage(root, app) {
   const list = h('div');
   const customBtn = h('button', { class: 'btn quiet', onclick: () => app.addCustomPiano() }, icon('plus'), t('sound.custom'));
-  const pianos = h('section', { class: 'pianos' }, h('h2', {}, t('sound.pianos')), list, h('div', { style: { marginTop: '14px' } }, customBtn));
+  const pianos = h('section', { class: 'pianos glass' }, h('h2', {}, t('sound.pianos')), list, h('div', { style: { marginTop: '14px' } }, customBtn));
 
   const sliders = {
     volume: slider({ key: 'volume', min: 0, max: 1.2, step: 0.01, label: t('sound.volume'), fmt: pct }, app),
@@ -45,7 +45,7 @@ export function mountSoundPage(root, app) {
     Object.keys(HALLS).map((k) => h('button', { 'data-hall': k, onclick: () => app.setSound({ hall: k }) }, t('hall.' + k))));
   const reset = h('button', { class: 'btn quiet', onclick: () => app.setSound({ ...DEFAULT_SOUND }) }, icon('restore'), t('sound.reset'));
 
-  const controls = h('section', { class: 'controls' },
+  const controls = h('section', { class: 'controls glass' },
     h('h2', {}, t('sound.controls')),
     sliders.volume.el,
     sliders.length.el,

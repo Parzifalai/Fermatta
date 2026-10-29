@@ -14,7 +14,7 @@ addStrings({
     'notes.selectFirst': 'Сначала выделите ноты', 'notes.sheet': 'Нотный стан',
     'notes.help': 'Карандаш (B) — рисовать, ластик (E) или правая кнопка — стирать, V — выделение. Колесо — вверх-вниз, Ctrl+колесо — масштаб, Shift+колесо — вбок. Alt+перетаскивание — копия. Q — выровнять.',
     'sheet.musicxml': 'MusicXML', 'sheet.pdf': 'PDF с нотами', 'sheet.making': 'Готовим ноты…',
-    'cmp.button': 'Сравнить с нотами', 'cmp.hint': 'Найти фальшивые и пропущенные ноты', 'cmp.title': 'Сравнить с нотами',
+    'cmp.button': 'Сравнить', 'cmp.hint': 'Найти фальшивые и пропущенные ноты', 'cmp.title': 'Сравнить с нотами',
     'cmp.body': 'Выберите ноты этой пьесы: файл MIDI или MusicXML, или запись из библиотеки. Приложение найдёт фальшивые, пропущенные и лишние ноты.',
     'cmp.openFile': 'Открыть файл нот', 'cmp.fromLibrary': 'Или из ваших записей', 'cmp.src.live': 'запись', 'cmp.src.midi': 'MIDI', 'cmp.src.musicxml': 'ноты', 'cmp.src.audio': 'по звуку', 'cmp.src.video': 'по видео', 'cmp.src.test': 'тест',
     'cmp.vs': 'совпадение с «{name}»', 'cmp.correct': 'верно {n}', 'cmp.wrong': 'фальшивых {n}', 'cmp.missing': 'пропущено {n}', 'cmp.extra': 'лишних {n}',

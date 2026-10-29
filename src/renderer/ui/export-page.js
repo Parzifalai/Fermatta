@@ -5,7 +5,7 @@ import { store } from '../store.js';
 
 export function mountExportPage(root, app) {
   const body = h('div', { class: 'export-body' });
-  root.append(h('div', { class: 'export' }, body));
+  root.append(h('div', { class: 'export glass' }, body));
   const extra = []; // sections added by later modules (video, sheet music)
 
   function section(title, desc, buttons) {
@@ -17,9 +17,8 @@ export function mountExportPage(root, app) {
   function render() {
     const take = store.state.take;
     body.replaceChildren();
-    body.append(h('h2', {}, t('export.title')));
     if (!take) { body.append(h('p', { class: 'muted' }, t('export.pickTake'))); return; }
-    body.append(h('div', { class: 'exp-take serif' }, take.name));
+    body.append(h('h2', {}, take.name));
     body.append(section(t('export.audio'), t('export.audio.desc'), [
       h('button', { class: 'btn primary', onclick: () => app.exportAudio('mp3') }, icon('music'), t('export.mp3')),
       h('button', { class: 'btn', onclick: () => app.exportAudio('wav') }, t('export.wav')),
