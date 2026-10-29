@@ -30,6 +30,8 @@ export function mountTakesPage(root, app) {
   search.addEventListener('input', renderList);
 
   let rollCanvas = null;
+  let punchBtn = null;
+  let punchText = '';
   let titleInput = null;
 
   function renderList() {
@@ -69,6 +71,7 @@ export function mountTakesPage(root, app) {
     detail.replaceChildren();
     rollCanvas = null;
     titleInput = null;
+    punchText = '';
     const take = s.take;
     if (!take) {
       const noPiano = !s.pianos.some((p) => p.installed);
@@ -111,20 +114,39 @@ export function mountTakesPage(root, app) {
         h('button', { class: 'btn', onclick: () => app.go('export') }, icon('download'), t('take.export')),
         h('button', { class: 'btn quiet', onclick: () => app.duplicateTake() }, icon('copy'), t('take.duplicate')),
         h('button', { class: 'btn quiet danger', onclick: () => app.trashTake(take.id) }, icon('trash'), t('take.delete')));
-    detail.append(titleInput, facts, h('div', { class: 'roll-wrap' }, rollCanvas), actions);
+    let punchRow = null;
+    punchBtn = null;
+    if (!inTrash) {
+      const mode = s.settings.punchMode === 'overlay' ? 'overlay' : 'replace';
+      punchBtn = h('button', { class: 'btn punch-btn', onclick: () => app.startPunch() }, h('span', { class: 'dot' }), h('span', { class: 'lbl' }));
+      const modeSeg = h('div', { class: 'seg' }, ['replace', 'overlay'].map((m) => h('button', {
+        'aria-pressed': String(m === mode), title: t(m === 'replace' ? 'punch.hintReplace' : 'punch.hintOverlay'),
+        onclick: () => app.setPunchMode(m),
+      }, t('punch.' + m))));
+      punchRow = h('div', { class: 'punch-row' }, punchBtn, modeSeg,
+        h('button', { class: 'btn quiet', onclick: () => app.markAtEnd() }, t('punch.end')),
+        h('span', { class: 'faint punch-hint' }, t(mode === 'replace' ? 'punch.hintReplace' : 'punch.hintOverlay')));
+    }
+    detail.append(titleInput, facts, h('div', { class: 'roll-wrap' }, rollCanvas), punchRow, actions);
     requestAnimationFrame(() => tick());
   }
 
   let lastKey = '';
   function render(state, patch = {}) {
     if (!patch || 'takes' in patch || 'trash' in patch || 'showTrash' in patch || 'take' in patch || 'mode' in patch) renderList();
-    const key = `${state.take?.id}|${state.take?.modified}|${state.mode === 'playing'}|${state.showTrash}|${state.pianos.some((p) => p.installed)}|${state.midi.ok}`;
+    const key = `${state.take?.id}|${state.take?.modified}|${state.mode === 'playing'}|${state.showTrash}|${state.pianos.some((p) => p.installed)}|${state.midi.ok}|${state.settings.punchMode}`;
     if (key !== lastKey) { lastKey = key; renderDetail(); }
   }
 
   function tick() {
-    if (rollCanvas && store.state.take) {
-      drawRoll(rollCanvas, store.state.take, { pos: app.position(), colors: app.handColors() });
+    const s = store.state;
+    if (rollCanvas && s.take) {
+      drawRoll(rollCanvas, s.take, { pos: app.position(), colors: app.handColors(), mark: s.punch ? s.punch.mark : null });
+    }
+    if (punchBtn) {
+      const text = t('punch.button', { time: fmtTime(s.punch ? s.punch.mark : app.position()) });
+      if (text !== punchText) { punchText = text; punchBtn.querySelector('.lbl').textContent = text; }
+      punchBtn.disabled = s.mode === 'recording' || s.mode === 'paused';
     }
   }
 

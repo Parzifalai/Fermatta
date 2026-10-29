@@ -23,9 +23,11 @@ function rng(seed) {
 
 const cache = new Map();
 
-export function makeImpulse(ctx, name) {
-  const h = HALLS[name] || HALLS.hall;
-  const key = `${name}@${ctx.sampleRate}`;
+// size scales the decay time, pre adds pre-delay (s), tone -1 dark .. +1 bright.
+export function makeImpulse(ctx, name, { size = 1, pre = 0, tone = 0 } = {}) {
+  const base = HALLS[name] || HALLS.hall;
+  const h = { rt: base.rt * size, pre: base.pre + pre, damp: Math.max(0.05, Math.min(0.9, base.damp - tone * 0.22)) };
+  const key = `${name}|${size.toFixed(2)}|${pre.toFixed(3)}|${tone.toFixed(2)}@${ctx.sampleRate}`;
   const sr = ctx.sampleRate;
   const len = Math.max(1, Math.round(sr * (h.rt + h.pre + 0.2)));
   let data = cache.get(key);
@@ -56,6 +58,7 @@ export function makeImpulse(ctx, name) {
       for (let i = 0; i < len; i++) out[i] *= norm * 0.9;
       return out;
     });
+    if (cache.size > 24) cache.delete(cache.keys().next().value);
     cache.set(key, data);
   }
   const buf = ctx.createBuffer(2, len, sr);

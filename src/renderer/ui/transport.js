@@ -50,7 +50,7 @@ export function mountTransport(root, app) {
     rec.classList.toggle('paused', s.mode === 'paused');
     recLabel.textContent = recording ? t('rec.stop') : t('rec.start');
     rec.title = recording ? t('rec.stop') : t('rec.start');
-    pauseBtn.disabled = !recording;
+    pauseBtn.disabled = !recording || !!s.punch;
     pauseBtn.title = s.mode === 'paused' ? t('rec.resume') : t('rec.pause');
     pauseBtn.replaceChildren(icon(s.mode === 'paused' ? 'play' : 'pause'));
     playIcon.replaceChildren(icon(s.mode === 'playing' ? 'pause' : 'play'));
@@ -63,7 +63,8 @@ export function mountTransport(root, app) {
     pianoName.textContent = p ? p.name.split(' — ')[1] || p.name : '—';
     pianoSub.textContent = s.pianoLoading !== null ? `${t('sound.loading')} ${Math.round(s.pianoLoading * 100)}%` : p ? p.piano : t('err.noPiano');
     vol.title = t('sound.volume');
-    if (recording) title.textContent = s.mode === 'paused' ? t('rec.paused') : app.recorder.t0 === null ? t('rec.waiting') : t('rec.recording');
+    if (s.punch) title.textContent = t('punch.listen', { time: fmtTime(s.punch.mark) });
+    else if (recording) title.textContent = s.mode === 'paused' ? t('rec.paused') : app.recorder.t0 === null ? t('rec.waiting') : t('rec.recording');
     else title.textContent = s.take ? s.take.name : '';
     total.textContent = recording ? '' : fmtTime(s.take?.duration || 0);
   }
@@ -71,6 +72,13 @@ export function mountTransport(root, app) {
   // called every animation frame
   function tick() {
     const s = store.state;
+    if (s.punch) {
+      const pos = app.position();
+      cur.textContent = fmtTime(pos);
+      const text = pos >= s.punch.mark ? t('punch.recording') : t('punch.listen', { time: fmtTime(s.punch.mark) });
+      if (title.textContent !== text) title.textContent = text;
+      return;
+    }
     if (s.mode === 'recording' || s.mode === 'paused') {
       cur.textContent = fmtTime(app.recorder.elapsed());
       return;

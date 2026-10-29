@@ -18,49 +18,134 @@ export const DEFAULT_SOUND = {
   leftVolume: 1,
   rightVolume: 1,
   noise: 1,         // hammer / damper / pedal noises
+  reverbSize: 1,    // multiplies the hall's decay time
+  reverbPre: 0,     // extra pre-delay, ms
+  reverbTone: 0,    // -1 dark .. +1 bright tail
+  width: 1,         // 0 mono .. 2 extra wide
+  comp: 0,          // compressor amount, 0 = off
+  echoMix: 0,       // ping-pong echo level, 0 = off
+  echoTime: 0.36,   // seconds between repeats
+  echoFeedback: 0.35,
 };
 
-// Builds the same chain inside any (live or offline) context.
+// Builds the same chain inside any (live or offline) context:
+// piano → tone → compressor → (dry + hall + echo) → stereo width → volume → limiter
 async function buildChain(ctx, pack, sound) {
   await ctx.audioWorklet.addModule(WORKLET);
   const node = new AudioWorkletNode(ctx, 'fermatta-piano', { numberOfInputs: 0, outputChannelCount: [2] });
   const ready = waitFor(node.port, 'ready');
   node.port.postMessage({ type: 'init', sab: pack.sab, meta: pack.meta });
   await ready;
+  const gain = (v = 1) => { const g = ctx.createGain(); g.gain.value = v; return g; };
   const low = ctx.createBiquadFilter();
   low.type = 'lowshelf'; low.frequency.value = 220;
   const high = ctx.createBiquadFilter();
   high.type = 'highshelf'; high.frequency.value = 3200;
-  const dry = ctx.createGain();
-  const wet = ctx.createGain();
-  const conv = ctx.createConvolver();
-  const master = ctx.createGain();
+  const comp = ctx.createDynamicsCompressor();
+  comp.knee.value = 8; comp.attack.value = 0.012; comp.release.value = 0.25;
+  const makeup = gain();
+  const bus = gain();
+  const dry = gain();
+  // two convolvers so a new hall fades in without a click
+  const convs = [0, 1].map(() => ({ conv: ctx.createConvolver(), out: gain(0) }));
+  const wet = gain();
+  // ping-pong echo: left repeat, then right, then left…
+  const echoSend = gain(0);
+  const echoTone = ctx.createBiquadFilter();
+  echoTone.type = 'lowpass'; echoTone.frequency.value = 4200;
+  const dl = ctx.createDelay(2), dr = ctx.createDelay(2);
+  const fbL = gain(0), fbR = gain(0);
+  const echoMerge = ctx.createChannelMerger(2);
+  // stereo width: L' = aL + bR, R' = bL + aR
+  const split = ctx.createChannelSplitter(2);
+  const merge = ctx.createChannelMerger(2);
+  const wLL = gain(1), wRL = gain(0), wLR = gain(0), wRR = gain(1);
+  const master = gain();
   const limiter = ctx.createDynamicsCompressor();
   limiter.threshold.value = -1.5; limiter.knee.value = 0; limiter.ratio.value = 20;
   limiter.attack.value = 0.002; limiter.release.value = 0.12;
-  node.connect(low).connect(high);
-  high.connect(dry).connect(master);
-  high.connect(conv).connect(wet).connect(master);
-  master.connect(limiter).connect(ctx.destination);
-  const chain = { ctx, node, low, high, dry, wet, conv, master, hall: null };
+
+  node.connect(low).connect(high).connect(comp).connect(makeup);
+  makeup.connect(dry).connect(bus);
+  for (const c of convs) { makeup.connect(c.conv).connect(c.out).connect(wet); }
+  wet.connect(bus);
+  makeup.connect(echoSend).connect(echoTone).connect(dl);
+  dl.connect(fbL).connect(dr);
+  dr.connect(fbR).connect(dl);
+  dl.connect(echoMerge, 0, 0);
+  dr.connect(echoMerge, 0, 1);
+  echoMerge.connect(bus);
+  bus.connect(split);
+  split.connect(wLL, 0).connect(merge, 0, 0);
+  split.connect(wRL, 1).connect(merge, 0, 0);
+  split.connect(wLR, 0).connect(merge, 0, 1);
+  split.connect(wRR, 1).connect(merge, 0, 1);
+  merge.connect(master).connect(limiter).connect(ctx.destination);
+  const chain = {
+    ctx, node, low, high, comp, makeup, dry, convs, active: 0, irKey: null, wet,
+    echoSend, dl, dr, fbL, fbR, wLL, wRL, wLR, wRR, master,
+    offline: typeof OfflineAudioContext !== 'undefined' && ctx instanceof OfflineAudioContext,
+  };
   applySound(chain, sound);
   return chain;
+}
+
+function hallOptions(s) {
+  return { size: s.reverbSize ?? 1, pre: (s.reverbPre ?? 0) / 1000, tone: s.reverbTone ?? 0 };
+}
+
+// Loads a new hall impulse into the idle convolver and cross-fades to it.
+function setHall(chain, s) {
+  const o = hallOptions(s);
+  const key = `${s.hall}|${o.size.toFixed(2)}|${o.pre.toFixed(3)}|${o.tone.toFixed(2)}`;
+  if (chain.irKey === key) return;
+  chain.irKey = key;
+  const load = () => {
+    if (chain.irKey !== key) return;
+    const t = chain.ctx.currentTime;
+    const first = !chain.hasHall;
+    const idx = first ? chain.active : 1 - chain.active;
+    const c = chain.convs[idx];
+    c.conv.buffer = makeImpulse(chain.ctx, s.hall, o);
+    if (!first) chain.convs[chain.active].out.gain.setTargetAtTime(0, t, 0.08);
+    chain.active = idx;
+    chain.hasHall = true;
+    if (chain.offline) c.out.gain.value = 1; else c.out.gain.setTargetAtTime(1, t, 0.08);
+  };
+  // while a slider is being dragged, rebuild the hall only once it settles
+  if (chain.offline || !chain.hasHall) { load(); return; }
+  clearTimeout(chain.irTimer);
+  chain.irTimer = setTimeout(load, 140);
 }
 
 function applySound(chain, s) {
   const { ctx } = chain;
   const t = ctx.currentTime;
-  chain.master.gain.setTargetAtTime(s.volume, t, 0.02);
+  const set = (p, v) => (chain.offline ? (p.value = v) : p.setTargetAtTime(v, t, 0.02));
+  set(chain.master.gain, s.volume);
   // brightness also shifts which velocity layer is used (see worklet)
-  chain.high.gain.setTargetAtTime(s.brightness * 6, t, 0.02);
-  chain.low.gain.setTargetAtTime(-s.brightness * 2.5, t, 0.02);
-  if (chain.hall !== s.hall) {
-    chain.hall = s.hall;
-    chain.conv.buffer = makeImpulse(ctx, s.hall);
-  }
+  set(chain.high.gain, s.brightness * 6);
+  set(chain.low.gain, -s.brightness * 2.5);
+  // compressor: lower threshold and higher ratio as the amount grows, with make-up gain
+  const c = s.comp || 0;
+  const thr = -c * 30, ratio = 1 + c * 5;
+  set(chain.comp.threshold, thr);
+  set(chain.comp.ratio, ratio);
+  set(chain.makeup.gain, Math.pow(10, (-thr * (1 - 1 / ratio) * 0.45) / 20));
+  setHall(chain, s);
   const mix = s.hall === 'none' ? 0 : s.hallMix;
-  chain.dry.gain.setTargetAtTime(1 - mix * 0.45, t, 0.02);
-  chain.wet.gain.setTargetAtTime(mix * 1.1, t, 0.02);
+  set(chain.dry.gain, 1 - mix * 0.45);
+  set(chain.wet.gain, mix * 1.1);
+  const em = s.echoMix || 0;
+  set(chain.echoSend.gain, em);
+  set(chain.dl.delayTime, s.echoTime ?? 0.36);
+  set(chain.dr.delayTime, s.echoTime ?? 0.36);
+  set(chain.fbL.gain, em > 0 ? (s.echoFeedback ?? 0.35) : 0);
+  set(chain.fbR.gain, em > 0 ? (s.echoFeedback ?? 0.35) : 0);
+  const w = s.width ?? 1;
+  const a = (1 + w) / 2, b = (1 - w) / 2;
+  set(chain.wLL.gain, a); set(chain.wRR.gain, a);
+  set(chain.wRL.gain, b); set(chain.wLR.gain, b);
   chain.node.port.postMessage({
     type: 'params',
     params: {
@@ -164,12 +249,15 @@ export class Engine {
   }
 
   // ---- transport ----
-  play(take, from = 0) {
+  // `to` plays only up to that moment and lifts the pedal there (used by punch-in).
+  play(take, from = 0, { to = Infinity } = {}) {
     if (!this.chain) return;
     this.stop(false);
     const rate = this.sound.tempo || 1;
     const t0 = this.ctx.currentTime + 0.06;
-    const events = takeEvents(take, { from, rate }).map((e) => ({ ...e, t: e.t + t0 }));
+    const ev = takeEvents(take, { from, to, rate });
+    if (Number.isFinite(to)) ev.push({ t: (to - from) / rate, kind: 'cc', cc: 64, value: 0 });
+    const events = ev.map((e) => ({ ...e, t: e.t + t0 }));
     this.chain.node.port.postMessage({ type: 'events', events });
     this.playing = { take, from, t0, rate };
     this.emit({ type: 'play' });

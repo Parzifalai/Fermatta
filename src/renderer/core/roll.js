@@ -1,5 +1,5 @@
 // Compact piano-roll picture of a take (time → x, pitch → y), with glowing notes.
-export function drawRoll(canvas, take, { pos = null, colors = { lh: '#7fa6d9', rh: '#e8b86a' }, from = 0, to = null } = {}) {
+export function drawRoll(canvas, take, { pos = null, colors = { lh: '#7fa6d9', rh: '#e8b86a' }, from = 0, to = null, mark = null } = {}) {
   const dpr = window.devicePixelRatio || 1;
   const W = canvas.clientWidth, H = canvas.clientHeight;
   if (!W || !H) return;
@@ -52,6 +52,16 @@ export function drawRoll(canvas, take, { pos = null, colors = { lh: '#7fa6d9', r
   }
   g.shadowBlur = 0;
   g.globalAlpha = 1;
+  if (mark !== null) {
+    // punch-in point: everything to its right is being recorded again
+    const mx = Math.round(x(mark));
+    const rec = cs.getPropertyValue('--rec').trim() || '#ff4d5e';
+    g.fillStyle = rec;
+    g.globalAlpha = 0.12;
+    g.fillRect(mx, 0, W - mx, H);
+    g.globalAlpha = 1;
+    g.fillRect(mx - 1, 0, 2, H);
+  }
   if (pos !== null) {
     const px = Math.round(x(pos));
     const gr = g.createLinearGradient(px - 70, 0, px, 0);

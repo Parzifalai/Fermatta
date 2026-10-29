@@ -6,6 +6,7 @@ import { toast } from './ui/toast.js';
 import { Engine, DEFAULT_SOUND, wavFromBuffer } from './audio/engine.js';
 import { MidiInput } from './core/midi-input.js';
 import { Recorder, newId, finalize, emptyTake } from './core/take.js';
+import { assignHands } from './core/hands.js';
 import { parseMidi, writeMidi } from './core/smf.js';
 import { KeyboardStrip } from './ui/keyboard.js';
 import { mountTransport } from './ui/transport.js';
@@ -304,6 +305,7 @@ class App {
     if (s.settings.liveMonitor && this.engine.chain && s.mode !== 'playing') {
       this.engine.live({ ...ev, hand: ev.kind === 'on' ? this.liveHand(ev.key) : 1 });
     }
+    if (this.punch) this.punchInput(ev);
     if (this.recorder.active) {
       const first = this.recorder.t0 === null;
       this.recorder.input(ev);
@@ -321,6 +323,101 @@ class App {
     return this.startRecord();
   }
 
+  // ---------- punch-in: record again from the playhead ----------
+  // The take plays from a few seconds before the mark so you can find your
+  // place; from the mark on, what you play is recorded. "replace" drops the old
+  // notes after the mark, "overlay" keeps them and adds the new ones on top.
+  async startPunch() {
+    const s = store.state;
+    if (!s.take || s.mode === 'recording' || s.mode === 'paused') return;
+    if (!this.engine.chain) {
+      toast(t('sound.needPiano'), { action: t('sound.install'), onAction: () => this.go('sound') });
+      return;
+    }
+    const mode = s.settings.punchMode === 'overlay' ? 'overlay' : 'replace';
+    const mark = Math.max(0, Math.min(this.position(), s.take.duration));
+    const pre = s.settings.punchPreroll ?? 3;
+    const from = Math.max(0, mark - pre);
+    if (s.mode === 'playing') this.engine.stop(false);
+    await this.engine.ensureContext();
+    this.engine.play(s.take, from, mode === 'replace' ? { to: mark } : {});
+    this.punch = { take: s.take, mark, mode, notes: [], pedal: [], open: new Map(), pedalBefore: 0, rate: this.engine.sound.tempo || 1 };
+    store.set({ mode: 'recording', punch: { mark, mode } });
+  }
+
+  // Take time of a MIDI event, measured against what the player hears.
+  punchClock(ev) {
+    const pos = this.engine.position();
+    if (pos === null) return null;
+    const lag = ev.time ? Math.max(0, performance.now() - ev.time) / 1000 : 0;
+    return pos - lag * this.punch.rate;
+  }
+
+  punchInput(ev) {
+    const p = this.punch;
+    const tt = this.punchClock(ev);
+    if (tt === null) return;
+    if (ev.kind === 'on') {
+      if (tt < p.mark - 0.12) return; // still listening to the lead-in
+      const t0 = Math.max(p.mark, tt);
+      const open = p.open.get(ev.key);
+      if (open) open.d = Math.max(0.01, t0 - open.t);
+      const n = { k: ev.key, v: ev.vel, t: t0, d: 0, h: this.liveHand(ev.key) };
+      p.notes.push(n);
+      p.open.set(ev.key, n);
+    } else if (ev.kind === 'off') {
+      const n = p.open.get(ev.key);
+      if (!n) return;
+      n.d = Math.max(0.01, tt - n.t);
+      p.open.delete(ev.key);
+    } else if (ev.kind === 'cc' && ev.cc === 64) {
+      if (tt < p.mark) p.pedalBefore = ev.value;
+      else p.pedal.push({ t: tt, v: ev.value });
+    }
+  }
+
+  async finishPunch() {
+    const p = this.punch;
+    const end = this.engine.position() ?? p.mark;
+    this.punch = null;
+    this.engine.stop();
+    this.keyboard.clearLive();
+    this.keyboard.setPlaying(new Map());
+    store.set({ mode: 'idle', punch: null });
+    for (const n of p.open.values()) n.d = Math.max(0.01, end - n.t);
+    if (!p.notes.length) { this.pausedAt = p.mark; toast(t('punch.empty')); return; }
+    const last = p.notes.reduce((m, n) => Math.max(m, n.t + n.d), p.mark);
+    await this.changeTake((take) => {
+      if (p.mode === 'replace') {
+        take.notes = take.notes.filter((n) => n.t < p.mark - 0.001);
+        for (const n of take.notes) if (n.t + n.d > p.mark) n.d = Math.max(0.01, p.mark - n.t);
+        const before = take.pedal.filter((x) => x.t < p.mark);
+        const down = before.length && before[before.length - 1].v >= 64;
+        take.pedal = before;
+        if (down) take.pedal.push({ t: p.mark, v: 0 });
+      }
+      if (p.pedalBefore >= 64) take.pedal.push({ t: p.mark + 0.001, v: p.pedalBefore });
+      take.notes.push(...p.notes);
+      take.pedal.push(...p.pedal);
+      if (p.pedal.length && p.pedal[p.pedal.length - 1].v >= 64) take.pedal.push({ t: last, v: 0 });
+      take.notes.sort((a, b) => a.t - b.t || a.k - b.k);
+      take.pedal.sort((a, b) => a.t - b.t);
+      if (!take.handsManual) assignHands(take.notes);
+    });
+    // the playhead waits where you stopped, ready for the next punch-in
+    this.pausedAt = Math.min(last, store.state.take.duration);
+    toast(t(p.mode === 'replace' ? 'punch.doneReplace' : 'punch.doneOverlay', { n: p.notes.length }));
+  }
+
+  setPunchMode(mode) { this.updateSettings({ punchMode: mode }); }
+
+  markAtEnd() {
+    const take = store.state.take;
+    if (!take || store.state.mode === 'recording') return;
+    if (store.state.mode === 'playing') this.pausePlayback();
+    this.pausedAt = take.duration;
+  }
+
   startRecord() {
     this.stopPlayback();
     const n = store.state.takes.length + 1;
@@ -330,12 +427,14 @@ class App {
   }
 
   pauseRecord() {
+    if (this.punch) return;
     const m = store.state.mode;
     if (m === 'recording') { this.recorder.pause(); store.set({ mode: 'paused' }); }
     else if (m === 'paused') { this.recorder.resume(); store.set({ mode: 'recording' }); }
   }
 
   async stopRecord() {
+    if (this.punch) return this.finishPunch();
     const take = this.recorder.stop();
     store.set({ mode: 'idle' });
     this.keyboard.clearLive();
@@ -408,9 +507,9 @@ class App {
 
   updatePlayingKeys() {
     const take = store.state.take;
-    if (store.state.mode !== 'playing' || !take) return;
+    if ((store.state.mode !== 'playing' && !this.punch) || !take) return;
     const pos = this.position();
-    if (pos > take.duration + 0.3) { this.stopPlayback(); return; }
+    if (!this.punch && pos > take.duration + 0.3) { this.stopPlayback(); return; }
     const map = new Map();
     for (const n of take.notes) {
       if (n.t > pos) break;
@@ -725,6 +824,7 @@ class App {
         if (s.tab === 'takes' || rec) this.toggleRecord(); else this.togglePlay();
         return;
       case 'recordAlt': this.toggleRecord(); return;
+      case 'punch': if (rec) this.stopRecord(); else this.startPunch(); return;
       case 'pause': if (rec) this.pauseRecord(); else return false; return;
       case 'play': this.togglePlay(); return;
       case 'stop': if (document.querySelector('.modal-back')) return false; this.stopAll(); return;

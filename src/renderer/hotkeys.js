@@ -2,6 +2,7 @@
 export const DEFAULT_HOTKEYS = {
   record: 'Space',
   recordAlt: 'KeyR',
+  punch: 'Shift+KeyR',
   pause: 'KeyP',
   play: 'Enter',
   stop: 'Escape',

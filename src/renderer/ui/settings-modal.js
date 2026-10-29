@@ -27,6 +27,13 @@ export function openSettings(app) {
       await app.setTheme(th);
     },
   }, t('theme.' + th))));
+  const preroll = h('div', { class: 'seg' }, [1, 2, 3, 5].map((n) => h('button', {
+    'aria-pressed': String((store.state.settings.punchPreroll ?? 3) === n),
+    onclick: (e) => {
+      for (const b of preroll.children) b.setAttribute('aria-pressed', String(b === e.currentTarget));
+      app.updateSettings({ punchPreroll: n });
+    },
+  }, t('punch.sec', { n }))));
   const inputs = app.midi.inputs();
   const midiSel = h('select', {},
     h('option', { value: '' }, getLang() === 'ru' ? 'Автоматически' : 'Automatic'),
@@ -81,6 +88,7 @@ export function openSettings(app) {
       h('div', {}, h('div', {}, t('settings.monitor')), h('div', { class: 'sub' }, t('settings.monitor.hint'))),
       toggle(s.liveMonitor, (v) => app.updateSettings({ liveMonitor: v }))),
     h('div', { class: 'set-row' }, h('div', {}, t('settings.pedalStart')), toggle(s.pedalStartsRecording, (v) => app.updateSettings({ pedalStartsRecording: v }))),
+    h('div', { class: 'set-row' }, h('div', {}, t('punch.preroll')), preroll),
     h('h3', {}, t('settings.folders')),
     folderRow(t('settings.library'), 'libraryDir'),
     folderRow(t('settings.pianosDir'), 'pianosDir'),

@@ -13,6 +13,7 @@ export const store = {
     progress: {},        // install progress per piano id
     midi: { ok: false, name: '' },
     pedal: 0,
+    punch: null,         // { mark, mode } while punching in
   },
   listeners: new Set(),
   set(patch) {
