@@ -22,7 +22,7 @@ const timeOf = (s) => {
 // video: H.264 mp4 rendered by the app; audio: wav (delayed by audioDelay s).
 // With a background video the notes are laid over it through a matte
 // (white = notes/keyboard), lightened by the notes' own glow.
-async function mux({ video, audio, out, matte, background, duration, width, height, audioDelay = 0, fps = 60, bgDim = 0.35, bgBlur = 0 }, progress) {
+async function mux({ video, audio, out, matte, background, duration, width, height, audioDelay = 0, fps = 60, bgDim = 0.35, bgBlur = 0, bgLook = {} }, progress) {
   await fsp.mkdir(path.dirname(out), { recursive: true });
   const onStderr = (s) => {
     const t = timeOf(s);
@@ -32,11 +32,28 @@ async function mux({ video, audio, out, matte, background, duration, width, heig
   const afilter = `adelay=${ms}:all=1,apad`;
   let args;
   if (background && matte) {
+    // only the chosen part of the background video, looped
+    const lk = bgLook || {};
+    if (lk.trimStart > 0 || lk.trimEnd > 0) {
+      const part = path.join(path.dirname(video), `bg-part-${Date.now()}.mp4`);
+      const cut = ['-y', '-v', 'error'];
+      if (lk.trimStart > 0) cut.push('-ss', String(lk.trimStart));
+      if (lk.trimEnd > 0) cut.push('-to', String(lk.trimEnd));
+      cut.push('-i', background, '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '14', '-pix_fmt', 'yuv420p', part);
+      await ffmpeg.run(cut);
+      background = part;
+    }
+    const zoom = Math.max(1, lk.zoom || 1);
+    const frame = `scale=${Math.round(width * zoom / 2) * 2}:${Math.round(height * zoom / 2) * 2}:force_original_aspect_ratio=increase,` +
+      `crop=${width}:${height}:(iw-${width})*${(0.5 + (lk.panX || 0) * 0.5).toFixed(3)}:(ih-${height})*${(0.5 + (lk.panY || 0) * 0.5).toFixed(3)}` +
+      (lk.flip ? ',hflip' : '') +
+      ((lk.bright ?? 1) !== 1 ? `,lutrgb=r=val*${lk.bright}:g=val*${lk.bright}:b=val*${lk.bright}` : '') +
+      ((lk.contrast ?? 1) !== 1 || (lk.saturate ?? 1) !== 1 ? `,eq=contrast=${lk.contrast ?? 1}:saturation=${lk.saturate ?? 1}` : '');
     const blur = bgBlur > 0 ? `,gblur=sigma=${(bgBlur * Math.min(width, height) / 1080 * 30).toFixed(1)}` : '';
     args = ['-y', '-v', 'error', '-stats',
       '-stream_loop', '-1', '-i', background, '-i', video, '-i', matte, '-i', audio,
       '-filter_complex',
-      `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,fps=${fps}${blur},` +
+      `[0:v]${frame},setsar=1,fps=${fps}${blur},` +
       `drawbox=color=black@${bgDim}:t=fill[bg];` +
       `[1:v]split[c][c2];[c2]format=gray[lum];[2:v]format=gray[m0];[m0][lum]blend=all_mode=lighten[m];` +
       `[c][m]alphamerge[fg];[bg][fg]overlay=shortest=1:format=auto[v];[3:a]${afilter}[a]`,

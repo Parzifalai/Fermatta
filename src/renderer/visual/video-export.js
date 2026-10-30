@@ -90,7 +90,8 @@ export function openVideoExport(app, { aspect = '9:16' } = {}) {
   sync();
 }
 
-function lead(style) { return style.speed + 0.6; }
+// seconds of falling notes before the music starts
+export function lead(style) { return style.speed + 0.6; }
 function videoLength(app, take) {
   const rate = app.engine.sound.tempo || 1;
   return lead(app.visualStyle()) + take.duration / rate + 3;
@@ -189,6 +190,7 @@ export async function exportVideo(app, { aspect, short, fps, out }) {
       matte: withBgVideo ? passes[1].file : null,
       background: withBgVideo ? style.bg.video : null,
       bgDim: style.bg.dim, bgBlur: style.bg.blur,
+      bgLook: { trimStart: style.bg.trimStart, trimEnd: style.bg.trimEnd, zoom: style.bg.zoom, panX: style.bg.panX, panY: style.bg.panY, flip: style.bg.flip, bright: style.bg.bright, contrast: style.bg.contrast, saturate: style.bg.saturate },
     });
     off();
     busy.done();

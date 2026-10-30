@@ -2,6 +2,7 @@
 const { app, BrowserWindow, ipcMain, dialog, protocol, net, shell, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { Readable } = require('stream');
 const fsp = fs.promises;
 const { pathToFileURL } = require('url');
 const settings = require('./settings');
@@ -41,6 +42,30 @@ async function serveFile(file, request) {
   return new Response(res.body, { status: res.status, headers });
 }
 
+const MEDIA_TYPES = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
+
+// Videos and sounds are served in pieces (HTTP ranges) so they can be seeked.
+async function serveMedia(file, request) {
+  let st;
+  try { st = await fs.promises.stat(file); } catch { return new Response('not found', { status: 404 }); }
+  const headers = new Headers(ISOLATION);
+  headers.set('Accept-Ranges', 'bytes');
+  headers.set('Content-Type', MEDIA_TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream');
+  const m = /bytes=(\d*)-(\d*)/.exec(request.headers.get('Range') || '');
+  let start = 0, end = st.size - 1, status = 200;
+  if (m) {
+    if (m[1]) start = +m[1];
+    if (m[2]) end = Math.min(+m[2], st.size - 1);
+    if (!m[1] && m[2]) { start = Math.max(0, st.size - +m[2]); end = st.size - 1; }
+    if (start > end || start >= st.size) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${st.size}` } });
+    status = 206;
+    headers.set('Content-Range', `bytes ${start}-${end}/${st.size}`);
+  }
+  headers.set('Content-Length', String(end - start + 1));
+  const body = Readable.toWeb(fs.createReadStream(file, { start, end }));
+  return new Response(body, { status, headers });
+}
+
 function registerProtocols() {
   protocol.handle('app', (request) => {
     const url = new URL(request.url);
@@ -62,7 +87,9 @@ function registerProtocols() {
     else if (url.host === 'library') file = path.join(settings.get().libraryDir, parts);
     else if (url.host === 'file') file = parts;
     else return new Response('not found', { status: 404 });
-    return serveFile(path.normalize(file), request);
+    file = path.normalize(file);
+    if (MEDIA_TYPES[path.extname(file).toLowerCase()]) return serveMedia(file, request);
+    return serveFile(file, request);
   });
 }
 
@@ -212,7 +239,7 @@ function registerIpc() {
     const hands = videoNotes.handsFromColour(notes);
     const hex = (c) => '#' + c.map((v) => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, '0')).join('');
     return {
-      source: 'picture', handsFromVideo: hands, pedal: audio.pedal,
+      source: 'picture', handsFromVideo: hands, pedal: videoNotes.alignPedal(audio.pedal, notes, notes.shift || 0),
       notes: notes.map((n) => ({ k: n.k, t: n.t, d: Math.max(0.03, n.d), v: n.v, h: n.h ?? 1, c: hex(n.c) })),
     };
   });

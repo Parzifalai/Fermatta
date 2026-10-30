@@ -10,7 +10,11 @@ export const DEFAULT_VISUAL = {
   keyRh: '#ffb04d',
   heat: 0.85,           // notes take on heatColor as they near the keys
   heatColor: '#ff8c42',
-  bg: { type: 'gradient', a: '#1b1f2a', b: '#07080b', angle: 180, image: '', video: '', blur: 0, dim: 0.35 },
+  bg: {
+    type: 'gradient', a: '#1b1f2a', b: '#07080b', angle: 180, image: '', video: '', blur: 0, dim: 0.35,
+    // photo / video: the part of the video used (s), framing and colour
+    trimStart: 0, trimEnd: 0, zoom: 1, panX: 0, panY: 0, flip: false, bright: 1, contrast: 1, saturate: 1,
+  },
   noteStyle: 'capsule', // capsule | neon | liquid | soft | glass | pill | flat
   opacity: 1,           // see-through notes: 1 solid .. 0.15 almost clear
   refract: 0.7,         // how strongly liquid-glass notes bend the background
@@ -100,7 +104,10 @@ export function applyPreset(style, id) {
   const p = PRESETS.find((x) => x.id === id) || PRESETS[0];
   const base = { ...DEFAULT_VISUAL, ...p.style };
   const keep = { range: style.range, noteNames: style.noteNames, velocityShade: style.velocityShade, speed: style.speed, keyHeight: style.keyHeight };
-  return { ...base, ...keep, preset: p.id, bg: { ...style.bg, ...DEFAULT_VISUAL.bg, ...(p.style.bg || {}), image: style.bg?.image || '', video: style.bg?.video || '' } };
+  // your own photo or video and how you framed it stay; the preset sets the rest
+  const own = {};
+  for (const k of ['image', 'video', 'trimStart', 'trimEnd', 'zoom', 'panX', 'panY', 'flip', 'bright', 'contrast', 'saturate']) if (style.bg?.[k] !== undefined) own[k] = style.bg[k];
+  return { ...base, ...keep, preset: p.id, bg: { ...DEFAULT_VISUAL.bg, ...(p.style.bg || {}), ...own } };
 }
 
 export const PALETTES = [
@@ -289,9 +296,21 @@ export class TilesRenderer {
       const sw = src.videoWidth || src.naturalWidth || src.width;
       const sh = src.videoHeight || src.naturalHeight || src.height;
       if (sw && sh) {
-        const sc = Math.max(W / sw, H / sh) * (bg.blur > 0 ? 1.06 : 1);
-        g.filter = bg.blur > 0 ? `blur(${bg.blur * G.unit * 30}px)` : 'none';
-        g.drawImage(src, (W - sw * sc) / 2, (H - sh * sc) / 2, sw * sc, sh * sc);
+        // cover the frame, then zoom in and move the visible part (pan -1..1)
+        const sc = Math.max(W / sw, H / sh) * (bg.blur > 0 ? 1.06 : 1) * Math.max(1, bg.zoom || 1);
+        const dw = sw * sc, dh = sh * sc;
+        const x = -(dw - W) * (0.5 + (bg.panX || 0) * 0.5);
+        const y = -(dh - H) * (0.5 + (bg.panY || 0) * 0.5);
+        const f = [];
+        if (bg.blur > 0) f.push(`blur(${bg.blur * G.unit * 30}px)`);
+        if ((bg.bright ?? 1) !== 1) f.push(`brightness(${bg.bright})`);
+        if ((bg.contrast ?? 1) !== 1) f.push(`contrast(${bg.contrast})`);
+        if ((bg.saturate ?? 1) !== 1) f.push(`saturate(${bg.saturate})`);
+        g.filter = f.length ? f.join(' ') : 'none';
+        g.save();
+        if (bg.flip) { g.translate(W, 0); g.scale(-1, 1); }
+        g.drawImage(src, x, y, dw, dh);
+        g.restore();
         g.filter = 'none';
       } else { g.fillStyle = '#000'; g.fillRect(0, 0, W, H); }
       g.fillStyle = `rgba(0,0,0,${bg.dim})`;

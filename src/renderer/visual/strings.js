@@ -61,6 +61,10 @@ addStrings({
 
     'cm.hands': 'По рукам', 'cm.pitch': 'По высоте', 'cm.video': 'Как в видео', 'cm.noVideo': 'У этой записи нет цветов из видео: импортируйте видео с падающими нотами',
     'preset.flame': 'Пламя',
+
+    'tiles.trim': 'Кусок видео', 'tiles.trimStart': 'Начало', 'tiles.trimEnd': 'Конец', 'tiles.trimLabel': 'с {a} до {b}, длина {len}',
+    'tiles.frame': 'Кадр', 'tiles.zoom': 'Приближение', 'tiles.panX': 'Сдвиг вбок', 'tiles.panY': 'Сдвиг вверх-вниз', 'tiles.flip': 'Отразить',
+    'tiles.color': 'Цвет', 'tiles.bright': 'Яркость', 'tiles.contrast': 'Контраст', 'tiles.saturate': 'Насыщенность', 'tiles.lookReset': 'Сбросить кадр и цвет',
   },
   en: {
     'tiles.fullscreen': 'Full screen', 'tiles.hint': 'Space to listen', 'tiles.colors': 'Hand colours', 'tiles.keyColors': 'Keys',
@@ -121,5 +125,9 @@ addStrings({
 
     'cm.hands': 'By hand', 'cm.pitch': 'By pitch', 'cm.video': 'As in the video', 'cm.noVideo': 'This take has no colours from a video: import a falling-notes video',
     'preset.flame': 'Flame',
+
+    'tiles.trim': 'Video part', 'tiles.trimStart': 'Start', 'tiles.trimEnd': 'End', 'tiles.trimLabel': 'from {a} to {b}, {len} long',
+    'tiles.frame': 'Framing', 'tiles.zoom': 'Zoom', 'tiles.panX': 'Move sideways', 'tiles.panY': 'Move up/down', 'tiles.flip': 'Mirror',
+    'tiles.color': 'Colour', 'tiles.bright': 'Brightness', 'tiles.contrast': 'Contrast', 'tiles.saturate': 'Saturation', 'tiles.lookReset': 'Reset framing and colour',
   },
 });

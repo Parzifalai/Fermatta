@@ -1,10 +1,10 @@
 // "Tiles": the video studio — a live falling-notes preview and every part of its look.
-import { h, icon, paintRange } from './dom.js';
+import { h, icon, paintRange, fmtTime } from './dom.js';
 import { t } from '../i18n.js';
 import { store } from '../store.js';
 import { DEFAULT_VISUAL, PALETTES, BACKGROUNDS, PRESETS, applyPreset, keyboardHeight, demoTake } from '../visual/tiles-render.js';
 import { TilesComposer, renderThumb } from '../visual/gl-composer.js';
-import { openVideoExport } from '../visual/video-export.js';
+import { openVideoExport, lead } from '../visual/video-export.js';
 import { soundUI, effectsBlock, autoBtn } from './sound-controls.js';
 
 export const ASPECTS = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1 };
@@ -91,9 +91,10 @@ export function mountTilesPage(root, app) {
     } else if (bg.type === 'video' && bg.video) {
       const v = document.createElement('video');
       v.crossOrigin = 'anonymous';
-      v.muted = true; v.loop = true; v.playsInline = true;
+      // the background video follows the music: it plays and pauses with it (see syncVideo)
+      v.muted = true; v.loop = false; v.playsInline = true; v.preload = 'auto';
       v.src = 'fm://file/' + encodeURIComponent(bg.video);
-      v.oncanplay = () => { renderer.media.video = v; v.play().catch(() => {}); };
+      v.oncanplay = () => { renderer.media.video = v; };
     }
   }
 
@@ -118,6 +119,81 @@ export function mountTilesPage(root, app) {
   }
   function syncPresets() {
     for (const b of presetsEl.children) b.setAttribute('aria-pressed', String(b.dataset.id === style.preset));
+  }
+
+  // Keeps the background video at the same moment the exported video will show:
+  // the part between trimStart and trimEnd, looped, counted from the video's start.
+  function syncVideo(pos) {
+    const v = renderer.media.video;
+    if (!v || style.bg.type !== 'video' || !v.duration) return;
+    const s0 = Math.min(style.bg.trimStart || 0, v.duration - 0.1);
+    const s1 = style.bg.trimEnd > s0 ? Math.min(style.bg.trimEnd, v.duration) : v.duration;
+    const len = Math.max(0.1, s1 - s0);
+    const real = pos / (app.engine.sound.tempo || 1) + lead(style);
+    const target = s0 + (((real % len) + len) % len);
+    if (store.state.mode === 'playing') {
+      if (v.paused) v.play().catch(() => {});
+      if (Math.abs(v.currentTime - target) > 0.25 && !v.seeking) v.currentTime = target;
+    } else {
+      if (!v.paused) v.pause();
+      if (Math.abs(v.currentTime - target) > 0.04 && !v.seeking) v.currentTime = target;
+    }
+  }
+
+  // The part of the background video to use: a strip of frames with two handles.
+  function trimBar(bg) {
+    const strip = h('canvas', { class: 'vt-strip', width: 640, height: 64 });
+    const shadeA = h('div', { class: 'vt-shade' }), shadeB = h('div', { class: 'vt-shade' });
+    const hA = h('div', { class: 'vt-h', title: t('tiles.trimStart') }), hB = h('div', { class: 'vt-h', title: t('tiles.trimEnd') });
+    const box = h('div', { class: 'vtrim' }, strip, shadeA, shadeB, hA, hB);
+    const label = h('div', { class: 'vt-label num' });
+    let dur = 0, a = bg.trimStart || 0, b = bg.trimEnd || 0;
+    const layout = () => {
+      if (!dur) return;
+      const fa = a / dur, fb = (b > a ? b : dur) / dur;
+      hA.style.left = `${fa * 100}%`; hB.style.left = `${fb * 100}%`;
+      shadeA.style.left = '0'; shadeA.style.width = `${fa * 100}%`;
+      shadeB.style.left = `${fb * 100}%`; shadeB.style.width = `${(1 - fb) * 100}%`;
+      const end = b > a ? b : dur;
+      label.textContent = t('tiles.trimLabel', { a: fmtTime(a), b: fmtTime(end), len: fmtTime(end - a) });
+    };
+    const probe = document.createElement('video');
+    probe.muted = true; probe.crossOrigin = 'anonymous'; probe.preload = 'auto';
+    probe.src = 'fm://file/' + encodeURIComponent(bg.video);
+    const seek = (tm) => new Promise((res) => { probe.onseeked = () => res(); probe.currentTime = tm; });
+    probe.onloadedmetadata = async () => {
+      dur = probe.duration;
+      layout();
+      const g = strip.getContext('2d');
+      const N = 10, cw = strip.width / N, chh = strip.height;
+      for (let i = 0; i < N && box.isConnected !== false; i++) {
+        await seek(((i + 0.5) * dur) / N);
+        const sw = probe.videoWidth, sh = probe.videoHeight;
+        const sc = Math.max(cw / sw, chh / sh);
+        g.save(); g.beginPath(); g.rect(i * cw, 0, cw, chh); g.clip();
+        g.drawImage(probe, i * cw + (cw - sw * sc) / 2, (chh - sh * sc) / 2, sw * sc, sh * sc);
+        g.restore();
+      }
+      probe.src = '';
+    };
+    const drag = (handle, isStart) => handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      const r = box.getBoundingClientRect();
+      const move = (ev) => {
+        const tm = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * dur;
+        if (isStart) a = Math.min(tm, (b > a ? b : dur) - 0.5);
+        else b = Math.max(tm, a + 0.5);
+        if (!isStart && b > dur - 0.05) b = 0;
+        layout();
+        setStyle({ bg: { trimStart: Math.round(a * 100) / 100, trimEnd: Math.round(b * 100) / 100 } });
+      };
+      const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); };
+      handle.addEventListener('pointermove', move);
+      handle.addEventListener('pointerup', up);
+    });
+    drag(hA, true); drag(hB, false);
+    return h('div', { class: 'vt' }, box, label);
   }
 
   // --- control builders ---
@@ -174,8 +250,24 @@ export function mountTilesPage(root, app) {
             const p = await window.fm.dialog.open({ properties: ['openFile'], filters: [{ name: bg.type, extensions: exts }] });
             if (p) setStyle({ bg: { [bg.type]: p[0] } }, true);
           } }, icon('folder'), file ? file.split(/[\\/]/).pop().slice(0, 22) : t('tiles.pick'))));
+        if (bg.type === 'video' && bg.video) items.push(h('h4', { class: 'tp-sub' }, t('tiles.trim')), trimBar(bg));
         items.push(row(t('tiles.blur'), range('blur', 0, 1, 0.01, 'bg')));
         items.push(row(t('tiles.dim'), range('dim', 0, 0.9, 0.01, 'bg')));
+        if (file) {
+          const flip = h('input', { type: 'checkbox' });
+          flip.checked = !!bg.flip;
+          flip.addEventListener('change', () => setStyle({ bg: { flip: flip.checked } }));
+          items.push(h('h4', { class: 'tp-sub' }, t('tiles.frame')),
+            row(t('tiles.zoom'), range('zoom', 1, 3, 0.01, 'bg', (v) => `×${v.toFixed(2)}`)),
+            row(t('tiles.panX'), range('panX', -1, 1, 0.01, 'bg')),
+            row(t('tiles.panY'), range('panY', -1, 1, 0.01, 'bg')),
+            row(t('tiles.flip'), h('label', { class: 'toggle' }, flip, h('span'))),
+            h('h4', { class: 'tp-sub' }, t('tiles.color')),
+            row(t('tiles.bright'), range('bright', 0.3, 1.8, 0.01, 'bg', (v) => `${Math.round(v * 100)}%`)),
+            row(t('tiles.contrast'), range('contrast', 0.4, 1.8, 0.01, 'bg', (v) => `${Math.round(v * 100)}%`)),
+            row(t('tiles.saturate'), range('saturate', 0, 2, 0.01, 'bg', (v) => `${Math.round(v * 100)}%`)),
+            h('button', { class: 'btn quiet', onclick: () => setStyle({ bg: { zoom: 1, panX: 0, panY: 0, flip: false, bright: 1, contrast: 1, saturate: 1 } }, true) }, icon('restore'), t('tiles.lookReset')));
+        }
       }
       return [
         sec(t('tiles.background'), ...items),
@@ -311,6 +403,7 @@ export function mountTilesPage(root, app) {
     const pos = take ? app.position() : 0;
     // before playback starts, show the notes about to fall in
     const time = take && store.state.mode !== 'playing' && pos === 0 ? Math.min(0, (take.notes[0]?.t ?? 0) - style.speed * 0.6) : pos;
+    syncVideo(pos);
     composer.render(W, H, time, style);
     handle.style.top = `${(1 - keyboardHeight(W, H, style.keyHeight) / H) * 100}%`;
   }

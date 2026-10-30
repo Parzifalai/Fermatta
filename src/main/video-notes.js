@@ -348,7 +348,42 @@ function merge(visual, audio, { split = true } = {}) {
     }
     out.push({ ...v, t: start, d: v.t + v.d - start, v: vel });
   }
+  out.shift = shift;
   return out;
 }
 
-module.exports = { readVideo, merge, handsFromColour, findKeyboard };
+// The pedal heard in the sound is a little late and its changes are blurry.
+// Each change is moved to where a pianist makes it: lifted just before the next
+// chord and pressed again right after it, so the new chord is caught and the
+// old harmony is cleared.
+function alignPedal(pedal, notes, shift = 0) {
+  if (!pedal?.length) return pedal || [];
+  const onsets = [...new Set(notes.map((n) => Math.round(n.t * 100) / 100))].sort((x, y) => x - y);
+  const out = [];
+  let down = false;
+  const ev = pedal.map((p) => ({ t: Math.max(0, p.t - shift), v: p.v })).sort((x, y) => x.t - y.t);
+  for (let i = 0; i < ev.length; i++) {
+    const p = ev[i];
+    if (p.v >= 64 && !down) { out.push({ t: p.t, v: 127 }); down = true; continue; }
+    if (p.v < 64 && down) {
+      const next = ev.slice(i + 1).find((q) => q.v >= 64);
+      // a quick change near a chord: snap it to that chord
+      const near = onsets.filter((o) => o > p.t - 0.3 && o < p.t + 0.35);
+      if (next && next.t - p.t < 0.6 && near.length) {
+        const o = near.reduce((a, b2) => (Math.abs(b2 - p.t) < Math.abs(a - p.t) ? b2 : a));
+        // same bass before and after: the harmony did not change, keep the pedal down
+        const low = (a, z) => notes.filter((n) => n.t >= a && n.t < z).reduce((m, n) => Math.min(m, n.k), 128);
+        const before = low(o - 1.5, o - 0.02), after = low(o - 0.02, o + 0.4);
+        if (before < 128 && after < 128 && before % 12 === after % 12) { i = ev.indexOf(next); continue; }
+        out.push({ t: Math.max(0, o - 0.03), v: 0 }, { t: o + 0.06, v: 127 });
+        i = ev.indexOf(next);
+        continue;
+      }
+      out.push({ t: p.t, v: 0 });
+      down = false;
+    }
+  }
+  return out.sort((x, y) => x.t - y.t);
+}
+
+module.exports = { readVideo, merge, alignPedal, handsFromColour, findKeyboard };
