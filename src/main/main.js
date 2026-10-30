@@ -11,6 +11,7 @@ const media = require('./media');
 const transcriber = require('./transcribe');
 const omr = require('./omr');
 const vst = require('./vsthost');
+const videoNotes = require('./video-notes');
 
 const ROOT = path.join(__dirname, '..', '..');
 
@@ -196,7 +197,25 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('transcribe:file', (_e, file) => transcriber.transcribe(file, settings, (p) => send('transcribe:progress', p)));
+  // A falling-notes video is read from the picture (exact key presses), the sound
+  // adds loudness, pedal and repeated strikes; anything else is transcribed by ear.
+  ipcMain.handle('transcribe:file', async (_e, file) => {
+    const progress = (p) => send('transcribe:progress', p);
+    let picture = null;
+    if (/\.(mp4|mov|webm|mkv|avi)$/i.test(file)) {
+      try { picture = await videoNotes.readVideo(file, progress); } catch { picture = null; }
+      if (picture && picture.notes.length < 20) picture = null;
+    }
+    const audio = await transcriber.transcribe(file, settings, (p) => progress({ ...p, after: !!picture }));
+    if (!picture) return { ...audio, source: 'ear' };
+    const notes = videoNotes.merge(picture.notes, audio);
+    const hands = videoNotes.handsFromColour(notes);
+    const hex = (c) => '#' + c.map((v) => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, '0')).join('');
+    return {
+      source: 'picture', handsFromVideo: hands, pedal: audio.pedal,
+      notes: notes.map((n) => ({ k: n.k, t: n.t, d: Math.max(0.03, n.d), v: n.v, h: n.h ?? 1, c: hex(n.c) })),
+    };
+  });
   ipcMain.handle('omr:recognize', (_e, file) => omr.recognize(file, settings, (p) => send('omr:progress', p)));
   ipcMain.handle('transcribe:ready', () => transcriber.modelReady(settings));
   ipcMain.handle('vst:status', () => vst.status(settings));

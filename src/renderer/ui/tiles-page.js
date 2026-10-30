@@ -192,6 +192,8 @@ export function mountTilesPage(root, app) {
         row(t('studio.noteWidth'), range('noteWidth', 0.4, 1, 0.01)),
         row(t('studio.core'), range('core', 0, 1.2, 0.01))),
       sec(t('tiles.colors'),
+        seg('colorMode', [['hands', t('cm.hands')], ['pitch', t('cm.pitch')], ['video', t('cm.video')]], null, true),
+        style.colorMode === 'video' && !(store.state.take?.notes || []).some((n) => n.c) ? h('p', { class: 'faint tp-note' }, t('cm.noVideo')) : null,
         h('div', { class: 'swatches' }, PALETTES.map((p) => h('button', {
           class: 'swatch', title: t('pal.' + p.id), style: { background: `linear-gradient(90deg, ${p.lh} 50%, ${p.rh} 50%)` },
           onclick: () => setStyle({ lh: p.lh, rh: p.rh }, true),

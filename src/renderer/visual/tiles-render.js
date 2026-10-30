@@ -3,6 +3,7 @@ import { layout, isBlack, LOW, HIGH, hexToRgb } from '../core/keys.js';
 
 export const DEFAULT_VISUAL = {
   preset: 'fire-ice',
+  colorMode: 'hands',   // hands | pitch (low = lh, high = rh) | video (colours read from the video)
   lh: '#5b97ff',
   rh: '#86b6ff',
   keyLh: '#ff9b3d',     // lit key colours ('' = same as notes)
@@ -44,6 +45,7 @@ export const DEFAULT_VISUAL = {
 export const PRESETS = [
   { id: 'fire-ice', style: {} },
   { id: 'neon', style: {
+    colorMode: 'hands',
     lh: '#2f8cff', rh: '#38c6ff', keyLh: '#4fb4ff', keyRh: '#6fd0ff', heat: 0, noteStyle: 'neon', core: 1,
     glow: 1.1, sparks: 0.9, sparkColor: '#ff6a3d', embers: 0.35, emberColor: '#ff7a45', dust: 0.8, smoke: 0, beams: 0.2,
     flare: 1, line: 'laser', lineColor: '#3fb8ff', lineGlow: 1.1, keyboard: 'white', vignette: 0.3, tilt: 0, fog: 0.2,
@@ -68,12 +70,31 @@ export const PRESETS = [
     glow: 0.55, sparks: 0.25, sparkColor: '#ffffff', embers: 0, dust: 0.6, smoke: 0.9, smokeColor: '#7f93b0', beams: 0.2, flare: 0.6,
     line: 'laser', lineColor: '#bfe3ff', lineGlow: 0.8, keyboard: 'white', vignette: 0.45, tilt: 0, fog: 0.25,
     bg: { type: 'gradient', a: '#22324a', b: '#070a10', angle: 180 } } },
+  { id: 'flame', style: {
+    colorMode: 'pitch', lh: '#e3261c', rh: '#ffd61f', keyLh: '', keyRh: '', heat: 0, noteStyle: 'capsule', core: 0.55, opacity: 1,
+    glow: 1, sparks: 0.8, sparkColor: '', embers: 1.2, emberColor: '', dust: 0.3, smoke: 0, beams: 0.1, flare: 0.9,
+    line: 'laser', lineColor: '#2f6bff', lineGlow: 0.9, keyboard: 'white', vignette: 0.2, tilt: 0, fog: 0.15,
+    bg: { type: 'solid', a: '#000000', b: '#000000' } } },
   { id: 'classic', style: {
     lh: '#7fa6d9', rh: '#e8b86a', keyLh: '', keyRh: '', heat: 0, noteStyle: 'soft', core: 0.4,
     glow: 0.7, sparks: 0.6, sparkColor: '', embers: 0, dust: 0, smoke: 0, beams: 0.6, flare: 0.5,
     line: 'felt', lineGlow: 0.6, keyboard: 'classic', vignette: 0.2, tilt: 0, fog: 0, guides: true,
     bg: { type: 'gradient', a: '#141220', b: '#07070a', angle: 180 } } },
 ];
+
+// Colour along the keyboard: low notes take lh, high notes rh, blended in between.
+const pitchCache = new Map();
+export function pitchColour(S, k) {
+  const key = `${S.lh}|${S.rh}|${k}`;
+  let c = pitchCache.get(key);
+  if (!c) {
+    const t = Math.max(0, Math.min(1, (k - 30) / 66));
+    const a = rgbOf(S.lh), b = rgbOf(S.rh);
+    c = '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('');
+    pitchCache.set(key, c);
+  }
+  return c;
+}
 
 export function applyPreset(style, id) {
   const p = PRESETS.find((x) => x.id === id) || PRESETS[0];
@@ -325,8 +346,13 @@ export class TilesRenderer {
     return { x, w, fy0, fy1, black, key };
   }
 
-  colorOf(S, n) { return n.h === 0 ? S.lh : S.rh; }
-  keyColor(S, n) { return n.h === 0 ? S.keyLh || S.lh : S.keyRh || S.rh; }
+  colorOf(S, n) {
+    if (S.colorMode === 'video' && n.c) return n.c;
+    if (S.colorMode === 'pitch') return pitchColour(S, n.k);
+    return n.h === 0 ? S.lh : S.rh;
+  }
+
+  keyColor(S, n) { return (n.h === 0 ? S.keyLh : S.keyRh) || this.colorOf(S, n); }
 
   // Colour of a note at height fy: hand colour, warming up near the keys.
   tint(G, S, base, fy) {
@@ -687,10 +713,11 @@ export class TilesRenderer {
     // sparks: fast streaks thrown up from the attack, pulled back by gravity
     if (S.sparks > 0) {
       const life = 0.9, grav = 1500 * u;
-      const sc = rgbOf(S.sparkColor || S.emberColor);
       each(life, (nt, i, cx, kw) => {
         const age = time - nt.t;
         if (age > life) return;
+        // no spark colour set: each note throws sparks of its own colour
+        const sc = rgbOf(S.sparkColor || this.keyColor(S, nt));
         const count = Math.round((6 + (nt.v / 127) * 22) * S.sparks);
         for (let j = 0; j < count; j++) {
           const r1 = hash(i * 31, j), r2 = hash(j * 7, i), r3 = hash(i + j * 13, 1);
@@ -711,9 +738,9 @@ export class TilesRenderer {
     // embers: hot specks that rise, swirl and cool from white to deep red
     if (S.embers > 0) {
       const life = 3.6;
-      const ec = rgbOf(S.emberColor);
-      const deep = darkc(mixc(ec, [255, 40, 10], 0.5), 0.35);
       each(life, (nt, i, cx, kw) => {
+        const ec = rgbOf(S.emberColor || this.keyColor(S, nt));
+        const deep = darkc(mixc(ec, [255, 40, 10], 0.5), 0.35);
         const held = Math.min(nt.d, 3, time - nt.t);
         const waves = 1 + Math.floor(held / 0.12);
         for (let b = Math.max(0, waves - 30); b < waves; b++) {

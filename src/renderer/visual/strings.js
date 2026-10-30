@@ -58,6 +58,9 @@ addStrings({
     'fx.time.done': 'Включено послезвучие «Как в Time»',
 
     'ns.liquid': 'Жидкое стекло', 'studio.opacity': 'Прозрачность', 'studio.refract': 'Преломление', 'preset.liquid': 'Жидкое стекло',
+
+    'cm.hands': 'По рукам', 'cm.pitch': 'По высоте', 'cm.video': 'Как в видео', 'cm.noVideo': 'У этой записи нет цветов из видео: импортируйте видео с падающими нотами',
+    'preset.flame': 'Пламя',
   },
   en: {
     'tiles.fullscreen': 'Full screen', 'tiles.hint': 'Space to listen', 'tiles.colors': 'Hand colours', 'tiles.keyColors': 'Keys',
@@ -115,5 +118,8 @@ addStrings({
     'fx.time.done': 'Afterglow "Like in Time" is on',
 
     'ns.liquid': 'Liquid glass', 'studio.opacity': 'Opacity', 'studio.refract': 'Refraction', 'preset.liquid': 'Liquid glass',
+
+    'cm.hands': 'By hand', 'cm.pitch': 'By pitch', 'cm.video': 'As in the video', 'cm.noVideo': 'This take has no colours from a video: import a falling-notes video',
+    'preset.flame': 'Flame',
   },
 });

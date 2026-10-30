@@ -788,11 +788,15 @@ class App {
 
   async transcribeFile(file, name) {
     const b = this.busy(t('tr.title'));
-    const label = { model: 'tr.model', decode: 'tr.decode', listen: 'tr.listen', notes: 'tr.notes' };
-    const weight = { model: [0, 0.3], decode: [0.3, 0.33], listen: [0.33, 0.97], notes: [0.97, 1] };
+    const label = { look: 'tr.look', watch: 'tr.watch', model: 'tr.model', decode: 'tr.decode', listen: 'tr.listen', notes: 'tr.notes' };
+    const weight = { look: [0, 0.02], watch: [0.02, 1], model: [0, 0.3], decode: [0.3, 0.33], listen: [0.33, 0.97], notes: [0.97, 1] };
     const off = fm.transcribe.onProgress((p) => {
       const [a, z] = weight[p.stage] || [0, 1];
-      b.set(a + (z - a) * (p.ratio || 0), `${t(label[p.stage] || 'tr.listen')} ${Math.round((p.ratio || 0) * 100)}%`);
+      let r = a + (z - a) * (p.ratio || 0);
+      // a video read from the picture first: the picture takes the first 12%
+      if (p.stage === 'look' || p.stage === 'watch') r *= 0.12;
+      else if (p.after) r = 0.12 + r * 0.88;
+      b.set(r, `${t(label[p.stage] || 'tr.listen')} ${Math.round((p.ratio || 0) * 100)}%`);
     });
     try {
       const r = await fm.transcribe.file(file);
@@ -803,6 +807,9 @@ class App {
       take.media = { path: file, kind: take.source };
       take.notes = r.notes;
       take.pedal = r.pedal;
+      // the video showed which hand plays what (two key colours): keep it
+      if (r.handsFromVideo) take.handsManual = true;
+      if (r.source === 'picture') { take.transcribedFrom = 'picture'; toast(t('tr.fromPicture', { n: r.notes.length })); }
       finalize(take);
       return take;
     } finally {

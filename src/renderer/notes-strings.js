@@ -20,7 +20,7 @@ addStrings({
     'cmp.vs': 'совпадение с «{name}»', 'cmp.correct': 'верно {n}', 'cmp.wrong': 'фальшивых {n}', 'cmp.missing': 'пропущено {n}', 'cmp.extra': 'лишних {n}',
     'cmp.fix': 'Исправить по нотам', 'cmp.close': 'Убрать сравнение', 'cmp.fixed': 'Исправлено по нотам: ваш темп и сила нажатия сохранены. Ctrl+Z — вернуть',
     'omr.title': 'Читаем ноты с листа', 'omr.tool': 'Скачиваем распознавание нот (81 МБ, один раз)', 'omr.unpack': 'Распаковываем', 'omr.read': 'Распознаём', 'omr.none': 'На изображении не нашлось нот. Нужен чёткий скан или ровное фото листа.', 'cmp.src.scan': 'с листа',
-    'tr.title': 'Снимаем ноты по слуху', 'tr.model': 'Скачиваем слух (150 МБ, один раз)', 'tr.decode': 'Читаем звук', 'tr.listen': 'Слушаем', 'tr.notes': 'Записываем ноты', 'tr.empty': 'В записи не слышно фортепиано',
+    'tr.title': 'Снимаем ноты', 'tr.look': 'Ищем клавиатуру в видео', 'tr.watch': 'Смотрим, какие клавиши нажаты', 'tr.fromPicture': 'Ноты сняты с картинки видео: {n}. Сила нажатия и педаль взяты из звука', 'tr.model': 'Скачиваем слух (150 МБ, один раз)', 'tr.decode': 'Читаем звук', 'tr.listen': 'Слушаем', 'tr.notes': 'Записываем ноты', 'tr.empty': 'В записи не слышно фортепиано',
   },
   en: {
     'notes.velocity': 'Velocity', 'notes.grid': 'Grid', 'notes.grid.off': 'Off', 'notes.bpm': 'Tempo (beats per minute)', 'notes.bpmUnit': 'bpm',
@@ -40,6 +40,6 @@ addStrings({
     'cmp.vs': 'match with \u201c{name}\u201d', 'cmp.correct': '{n} right', 'cmp.wrong': '{n} wrong', 'cmp.missing': '{n} missed', 'cmp.extra': '{n} extra',
     'cmp.fix': 'Fix from the score', 'cmp.close': 'Hide comparison', 'cmp.fixed': 'Fixed from the score: your tempo and touch are kept. Ctrl+Z to undo',
     'omr.title': 'Reading the sheet music', 'omr.tool': 'Downloading notes recognition (81 MB, once)', 'omr.unpack': 'Unpacking', 'omr.read': 'Recognising', 'omr.none': 'No notes found. Use a sharp scan or a straight photo of the page.', 'cmp.src.scan': 'from sheet',
-    'tr.title': 'Transcribing by ear', 'tr.model': 'Downloading the listener (150 MB, once)', 'tr.decode': 'Reading the audio', 'tr.listen': 'Listening', 'tr.notes': 'Writing notes', 'tr.empty': 'No piano can be heard in this file',
+    'tr.title': 'Getting the notes', 'tr.look': 'Finding the keyboard in the video', 'tr.watch': 'Watching which keys are pressed', 'tr.fromPicture': '{n} notes read from the video picture; loudness and pedal taken from the sound', 'tr.model': 'Downloading the listener (150 MB, once)', 'tr.decode': 'Reading the audio', 'tr.listen': 'Listening', 'tr.notes': 'Writing notes', 'tr.empty': 'No piano can be heard in this file',
   },
 });
