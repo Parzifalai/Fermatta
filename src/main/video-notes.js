@@ -118,27 +118,27 @@ function findKeyboard(img, W, H) {
   const keys = [];
   const yw = Math.round(bot - kh * 0.13);
   const yk = Math.round(top + kh * 0.42);
-  // edges of a white key: black neighbours sit on its boundaries; E|F and B|C lie one white width to the right of D#/A#
-  const leftEdge = (m) => (blackX.has(m - 1) ? blackX.get(m - 1) : blackX.has(m - 2) ? blackX.get(m - 2) + ww : null);
-  const rightEdge = (m) => (blackX.has(m + 1) ? blackX.get(m + 1) : blackX.has(m - 1) ? blackX.get(m - 1) + ww : null);
-  for (let m = lo; m <= hi; m++) {
-    if (isBlack(m)) {
-      if (blackX.has(m)) keys.push({ m, x: Math.round(blackX.get(m)), y: yk, black: true });
-      continue;
-    }
-    let l = leftEdge(m), r = rightEdge(m);
-    if (l === null && r !== null) l = r - ww;
-    if (r === null && l !== null) r = l + ww;
-    if (l === null) continue;
-    const x = Math.round((l + r) / 2);
-    if (x < 1 || x > W - 2) continue;
-    keys.push({ m, x, y: yw, black: false });
-  }
+  // white keys sit on an even grid; each black key marks the boundary between
+  // two of them, so a straight-line fit through the black keys gives the grid
+  const whites = [];
+  for (let m = lo; m <= hi; m++) if (!isBlack(m)) whites.push(m);
+  const pts = midi.map((m, i) => [whites.indexOf(m - 1) + 1, centers[i]]).filter(([j]) => j > 0);
+  const n = pts.length;
+  const sx = pts.reduce((a, p) => a + p[0], 0), sy = pts.reduce((a, p) => a + p[1], 0);
+  const sxx = pts.reduce((a, p) => a + p[0] * p[0], 0), sxy = pts.reduce((a, p) => a + p[0] * p[1], 0);
+  const wWhite = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+  const x0 = (sy - wWhite * sx) / n;
+  whites.forEach((m, i) => {
+    const x = Math.round(x0 + (i + 0.5) * wWhite);
+    if (x >= 1 && x <= W - 2) keys.push({ m, x, y: yw, black: false });
+  });
+  midi.forEach((m, i) => keys.push({ m, x: Math.round(centers[i]), y: yk, black: true }));
+  keys.sort((a2, b2) => a2.m - b2.m);
   for (const k of keys) k.base = px(k.x, k.y);
   // a dark row just above the keyboard, where falling notes pass by
   let yt = top - 2;
   while (yt > 2 && bright[yt] > 0.05) yt--;
-  return { top, bot, keys, yt: Math.max(0, yt - 1), blacks: centers.length, whiteWidth: ww };
+  return { top, bot, keys, yt: Math.max(0, yt - 1), blacks: centers.length, whiteWidth: wWhite };
 }
 
 async function readVideo(file, progress = () => {}) {
@@ -163,27 +163,27 @@ async function readVideo(file, progress = () => {}) {
   const kb = findKeyboard(med, W, H);
   if (!kb || kb.keys.length < 24) return null;
 
-  // 2. every frame, only the strip with the keyboard and the row above it
-  const y0 = Math.max(0, kb.yt);
+  // 2. every frame: the keys themselves, and a row high above them where the
+  // falling notes pass (flames and sparks near the keys do not reach it)
+  const yR = Math.max(1, Math.round(kb.top * 0.45));
+  const y0 = yR;
   const ch = kb.bot - y0 + 1;
   const fps = Math.min(60, info.fps || 30);
   const total = Math.ceil(info.duration * fps);
-  const state = kb.keys.map(() => ({ on: false, t0: 0, cols: [], tileSeen: false, tileGap: false, splits: [] }));
-  const notes = [];
   const thr = 55;
-  const close = (k, s, t) => {
-    const c = s.cols.length ? s.cols.reduce((a, v) => [a[0] + v[0], a[1] + v[1], a[2] + v[2]], [0, 0, 0]).map((v) => Math.round(v / s.cols.length)) : [255, 255, 255];
-    let start = s.t0;
-    for (const sp of [...s.splits, t]) {
-      if (sp - start > 0.02) notes.push({ k: k.m, t: start, d: sp - start, c, v: 80 });
-      start = sp;
-    }
-    s.on = false; s.cols = []; s.splits = [];
-  };
+  const ww = kb.whiteWidth;
+  const bgRow = (y) => { const out = []; for (let x = 0; x < W; x++) out.push([med[(y * W + x) * 3], med[(y * W + x) * 3 + 1], med[(y * W + x) * 3 + 2]]); return out; };
+  const bgA = bgRow(yR), bgB = bgRow(yR + 2);
+  const frameRuns = []; // per frame: the tiles crossing the row, as [x0, x1, colour]
+  const keyState = kb.keys.map(() => ({ on: false, t0: 0, cols: [] }));
+  const lit = [];   // notes seen on the keys (onsets are reliable, lengths not always)
+  const tiles = []; // notes seen as falling tiles (exact lengths, shifted in time)
+  const avg = (arr) => (arr.length ? arr.reduce((a, v) => [a[0] + v[0], a[1] + v[1], a[2] + v[2]], [0, 0, 0]).map((v) => Math.round(v / arr.length)) : [255, 255, 255]);
+  const closeKey = (k, s, t) => { if (t - s.t0 > 0.02) lit.push({ k: k.m, t: s.t0, d: t - s.t0, c: avg(s.cols), v: 80 }); s.on = false; s.cols = []; };
   await frames(file, ['-vf', `fps=${fps},${scale},crop=${W}:${ch}:0:${y0}`], W, ch, (b, i) => {
     const t = i / fps;
+    const px = (x, y) => { const o = ((y - y0) * W + x) * 3; return [b[o], b[o + 1], b[o + 2]]; };
     const at = (x, y) => {
-      // average of three pixels across
       const o = ((y - y0) * W + x) * 3;
       return [(b[o - 3] + b[o] + b[o + 3]) / 3, (b[o - 2] + b[o + 1] + b[o + 4]) / 3, (b[o - 1] + b[o + 2] + b[o + 5]) / 3];
     };
@@ -191,38 +191,97 @@ async function readVideo(file, progress = () => {}) {
     let calm = 0;
     for (const k of kb.keys) if (dist(at(k.x, k.y), k.base) < thr * 0.45) calm++;
     if (calm < kb.keys.length * 0.4) {
-      kb.keys.forEach((k, ki) => { if (state[ki].on) close(k, state[ki], t); });
+      kb.keys.forEach((k, ki) => { if (keyState[ki].on) closeKey(k, keyState[ki], t); });
+      frameRuns.push([]);
       return;
     }
     kb.keys.forEach((k, ki) => {
+      // the key: lights up when played (black keys often turn a dark red, so colour counts, not just brightness)
       const c = at(k.x, k.y);
       const d = dist(c, k.base);
       const sc = sat(c[0], c[1], c[2]);
-      const lit = k.black ? d > thr && lum(...c) > lum(...k.base) + 35 : d > thr && sc > 0.3 && lum(...c) > 70;
-      // many videos light a key brightly and let it fade: it stays pressed until back to its own colour
-      const off = d < thr * 0.45;
-      const s = state[ki];
-      // a falling note crossing the row above the key
-      const tc = at(k.x, kb.yt);
-      const tile = lum(...tc) > 70;
-      if (!s.on && lit) { s.on = true; s.t0 = t; s.cols = [c]; s.tileSeen = tile; s.tileGap = false; return; }
-      if (s.on) {
-        if (off) { close(k, s, t); return; }
-        if (lit && sat(...c) > 0.3) s.cols.push(c);
-        // a gap between two notes on the same key, then a new note: split here
-        if (!tile && s.tileSeen) s.tileGap = true;
-        if (tile && s.tileGap && t - (s.splits.length ? s.splits[s.splits.length - 1] : s.t0) > 0.08) { s.splits.push(t); s.tileGap = false; }
-        if (tile) s.tileSeen = true;
+      const on = k.black ? d > thr && (lum(...c) > lum(...k.base) + 35 || sc > 0.5) : d > thr && sc > 0.3 && lum(...c) > 70;
+      const s = keyState[ki];
+      if (!s.on && on) { s.on = true; s.t0 = t; s.cols = [c]; }
+      else if (s.on) {
+        // many videos light a key brightly and let it fade: it stays pressed until back to its own colour
+        if (d < thr * 0.45) closeKey(k, s, t);
+        else if (on) s.cols.push(c);
       }
     });
+    // the falling tiles crossing the row: runs of note-coloured pixels on two rows
+    const runs = [];
+    for (let x = 0; x < W; x++) {
+      const isTile = (xx) => { const v = px(xx, yR), w2 = px(xx, yR + 2); return lum(...v) > 55 && dist(v, bgA[xx]) > 45 && lum(...w2) > 55 && dist(w2, bgB[xx]) > 45; };
+      if (!isTile(x)) continue;
+      let e = x;
+      while (e + 1 < W && isTile(e + 1)) e++;
+      if (e - x + 1 >= ww * 0.3) runs.push([x, e, px((x + e) >> 1, yR)]);
+      x = e;
+    }
+    frameRuns.push(runs);
     if (i % 30 === 0) progress({ stage: 'watch', ratio: Math.min(1, i / total) });
   });
   const end = total / fps;
-  kb.keys.forEach((k, ki) => { if (state[ki].on) close(k, state[ki], end); });
-  notes.sort((a, b) => a.t - b.t || a.k - b.k);
-  // intros and transitions light up half the keyboard at once: not music
-  const clean = notes.filter((n) => notes.filter((o) => Math.abs(o.t - n.t) < 1.5 / fps).length <= 10);
-  return { notes: clean, keys: kb.keys.length, blacks: kb.blacks, fps };
+  kb.keys.forEach((k, ki) => { if (keyState[ki].on) closeKey(k, keyState[ki], end); });
+  // a single tile's width is the most common run width; wider runs are neighbouring tiles side by side
+  const keyXs = kb.keys.map((k) => k.x);
+  const nearest = (x) => { let bi = 0; for (let j = 1; j < keyXs.length; j++) if (Math.abs(keyXs[j] - x) < Math.abs(keyXs[bi] - x)) bi = j; return bi; };
+  // white-key tiles are usually wider than black-key ones: the widest single tile is a white one
+  const wWidths = frameRuns.flat().filter((r) => !kb.keys[nearest((r[0] + r[1]) / 2)].black).map((r) => r[1] - r[0] + 1);
+  const tileW = Math.max(ww * 0.5, median(wWidths));
+  const tileOn = kb.keys.map(() => null);
+  frameRuns.forEach((runs, fi) => {
+    const t = fi / fps;
+    const now = new Map();
+    for (const [x0, x1, c] of runs) {
+      const w = x1 - x0 + 1;
+      const n = w > tileW * 1.6 ? Math.max(2, Math.min(8, Math.round(w / (tileW * 0.95)))) : 1;
+      const part = (x1 - x0 + 1) / n;
+      for (let j = 0; j < n; j++) now.set(nearest(x0 + part * (j + 0.5)), c);
+    }
+    kb.keys.forEach((k, ki) => {
+      const cur = tileOn[ki];
+      if (now.has(ki)) {
+        if (!cur) tileOn[ki] = { a: t, cols: [now.get(ki)] };
+        else if (cur.cols.length < 60) cur.cols.push(now.get(ki));
+      } else if (cur) {
+        tiles.push({ k: k.m, a: cur.a, b: t, c: avg(cur.cols) });
+        tileOn[ki] = null;
+      }
+    });
+  });
+  kb.keys.forEach((k, ki) => { if (tileOn[ki]) tiles.push({ k: k.m, a: tileOn[ki].a, b: end, c: avg(tileOn[ki].cols) }); });
+  const burst = (list, time) => list.filter((n) => list.filter((o) => Math.abs(time(o) - time(n)) < 1.5 / fps).length <= 10);
+  const keyNotes = burst(lit, (n) => n.t).sort((x, y) => x.t - y.t || x.k - y.k);
+
+  // 3. how long a tile takes from the row to the keys: the most common gap
+  // between a key lighting up and a tile on that key passing the row earlier
+  const byKey = new Map();
+  for (const tl of tiles) { if (!byKey.has(tl.k)) byKey.set(tl.k, []); byKey.get(tl.k).push(tl); }
+  const votes = new Map();
+  for (const n of keyNotes) {
+    for (const tl of byKey.get(n.k) || []) {
+      const dt = n.t - tl.a;
+      if (dt > 0.05 && dt < 8) { const bin = Math.round(dt * fps); votes.set(bin, (votes.get(bin) || 0) + 1); }
+    }
+  }
+  let bestBin = null, bestVotes = 0;
+  for (const [bin, v] of votes) {
+    const sum = v + (votes.get(bin - 1) || 0) + (votes.get(bin + 1) || 0);
+    if (sum > bestVotes) { bestVotes = sum; bestBin = bin; }
+  }
+  const delay = bestBin === null ? 0 : bestBin / fps;
+  const support = bestBin === null ? 0 : keyNotes.filter((n) => (byKey.get(n.k) || []).some((tl) => Math.abs(n.t - tl.a - delay) <= 2.5 / fps)).length;
+  const useTiles = support >= Math.max(10, keyNotes.length * 0.5);
+  if (!useTiles) return { notes: keyNotes, keys: kb.keys.length, blacks: kb.blacks, fps, from: 'keys' };
+  // tiles give exact lengths and separate repeated notes; shift them to the moment they reach the keys
+  const notes = burst(tiles, (tl) => tl.a)
+    .filter((tl) => tl.b - tl.a > 1.6 / fps)
+    .map((tl) => ({ k: tl.k, t: tl.a + delay, d: tl.b - tl.a, c: tl.c, v: 80 }))
+    .filter((n) => n.t < info.duration + 0.5)
+    .sort((x, y) => x.t - y.t || x.k - y.k);
+  return { notes, keys: kb.keys.length, blacks: kb.blacks, fps, from: 'tiles', delay, support, keyNotes: keyNotes.length };
 }
 
 // Hue in degrees, for telling hand colours apart.
@@ -267,7 +326,7 @@ function handsFromColour(notes) {
 
 // Picture notes + sound notes: loudness, pedal and re-strikes the picture missed.
 // Timing stays the picture's: the frames are exact, the ear lags a little.
-function merge(visual, audio) {
+function merge(visual, audio, { split = true } = {}) {
   const byKey = new Map();
   for (const n of audio.notes) { if (!byKey.has(n.k)) byKey.set(n.k, []); byKey.get(n.k).push(n); }
   const offsets = [];
@@ -281,7 +340,7 @@ function merge(visual, audio) {
   const out = [];
   for (const v of visual) {
     // the sound struck the same key again while the key stayed lit: split
-    const inner = (byKey.get(v.k) || []).filter((a) => !a.used && a.t - shift > v.t + 0.12 && a.t - shift < v.t + v.d - 0.06).sort((x, y) => x.t - y.t);
+    const inner = split ? (byKey.get(v.k) || []).filter((a) => !a.used && a.t - shift > v.t + 0.12 && a.t - shift < v.t + v.d - 0.06).sort((x, y) => x.t - y.t) : [];
     let start = v.t, vel = v.v;
     for (const a of inner) {
       out.push({ ...v, t: start, d: a.t - shift - start, v: vel });

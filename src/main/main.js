@@ -208,7 +208,7 @@ function registerIpc() {
     }
     const audio = await transcriber.transcribe(file, settings, (p) => progress({ ...p, after: !!picture }));
     if (!picture) return { ...audio, source: 'ear' };
-    const notes = videoNotes.merge(picture.notes, audio);
+    const notes = videoNotes.merge(picture.notes, audio, { split: picture.from !== 'tiles' });
     const hands = videoNotes.handsFromColour(notes);
     const hex = (c) => '#' + c.map((v) => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, '0')).join('');
     return {

@@ -2,6 +2,7 @@
 // chord is split between the hands where it costs least: notes far from that
 // hand's current position, stretches wider than a hand, and more than five
 // fingers per hand are expensive. Hand positions then drift with the music.
+// Passages that fit under one hand stay in one hand.
 // Notes the user fixed by hand (n.hLock) are kept.
 
 const SPAN = 13;
@@ -28,9 +29,25 @@ function handCost(keys, center, active) {
   return c;
 }
 
+// A short passage whose notes all fit under one hand (broken chords,
+// arpeggios) is most likely one hand: low passages the left, high the right.
+function preferredHands(sorted, split) {
+  const pref = new Map();
+  let lo = 0, hi = 0;
+  for (const n of sorted) {
+    while (sorted[lo].t < n.t - 0.8) lo++;
+    while (hi + 1 < sorted.length && sorted[hi + 1].t <= n.t + 0.8) hi++;
+    let mn = 127, mx = 0;
+    for (let i = lo; i <= hi; i++) { mn = Math.min(mn, sorted[i].k); mx = Math.max(mx, sorted[i].k); }
+    if (hi > lo + 1 && mx - mn <= 17) pref.set(n, (mn + mx) / 2 < split + 2 ? 0 : 1);
+  }
+  return pref;
+}
+
 export function assignHands(notes, { split = 60 } = {}) {
   if (!notes.length) return notes;
   const sorted = notes.slice().sort((a, b) => a.t - b.t || a.k - b.k);
+  const pref = preferredHands(sorted, split);
   let L = Math.min(split - 7, sorted[0].k);
   let R = Math.max(split + 7, sorted[0].k);
   const sounding = []; // notes still held: {n, end}
@@ -48,6 +65,7 @@ export function assignHands(notes, { split = 60 } = {}) {
       // locked notes must stay on their side
       if (chord.some((n, i) => n.hLock && (i < at ? n.h !== 0 : n.h !== 1))) continue;
       let cost = handCost(left, L, actL) + handCost(right, R, actR);
+      chord.forEach((n, i) => { const p = pref.get(n); if (p !== undefined && p !== (i < at ? 0 : 1)) cost += 14; });
       // a lone low note is usually the left hand and vice versa
       if (left.length && Math.max(...left) > split + 12) cost += 8;
       if (right.length && Math.min(...right) < split - 12) cost += 8;
