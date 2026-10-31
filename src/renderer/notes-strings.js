@@ -21,6 +21,12 @@ addStrings({
     'cmp.fix': 'Исправить по нотам', 'cmp.close': 'Убрать сравнение', 'cmp.fixed': 'Исправлено по нотам: ваш темп и сила нажатия сохранены. Ctrl+Z — вернуть',
     'omr.title': 'Читаем ноты с листа', 'omr.tool': 'Скачиваем распознавание нот (81 МБ, один раз)', 'omr.unpack': 'Распаковываем', 'omr.read': 'Распознаём', 'omr.none': 'На изображении не нашлось нот. Нужен чёткий скан или ровное фото листа.', 'cmp.src.scan': 'с листа',
     'tr.title': 'Снимаем ноты', 'tr.look': 'Ищем клавиатуру в видео', 'tr.watch': 'Смотрим, какие клавиши нажаты', 'tr.fromPicture': 'Ноты сняты с картинки видео: {n}. Сила нажатия и педаль взяты из звука', 'tr.model': 'Скачиваем слух (150 МБ, один раз)', 'tr.decode': 'Читаем звук', 'tr.listen': 'Слушаем', 'tr.notes': 'Записываем ноты', 'tr.empty': 'В записи не слышно фортепиано',
+
+    'sheet.stage.env': 'Готовим помощника нот (один раз, около 200 МБ)', 'sheet.stage.models': 'Скачиваем нейросеть для нот (один раз, около 200 МБ)',
+    'sheet.stage.analyze': 'Расставляем такты, руки и тональность', 'sheet.stage.musescore': 'Скачиваем MuseScore для вёрстки (один раз, 115 МБ)',
+    'sheet.stage.unpack': 'Распаковываем MuseScore', 'sheet.stage.engrave': 'Вёрстаем ноты',
+    'sheet.noPython': 'Для читаемых нот нужен Python 3.9+ (python.org). Сохраняю ноты без нейросети',
+    'sheet.noAi': 'Нейросеть для нот недоступна ({e}). Сохраняю ноты без неё',
   },
   en: {
     'notes.velocity': 'Velocity', 'notes.grid': 'Grid', 'notes.grid.off': 'Off', 'notes.bpm': 'Tempo (beats per minute)', 'notes.bpmUnit': 'bpm',
@@ -41,5 +47,11 @@ addStrings({
     'cmp.fix': 'Fix from the score', 'cmp.close': 'Hide comparison', 'cmp.fixed': 'Fixed from the score: your tempo and touch are kept. Ctrl+Z to undo',
     'omr.title': 'Reading the sheet music', 'omr.tool': 'Downloading notes recognition (81 MB, once)', 'omr.unpack': 'Unpacking', 'omr.read': 'Recognising', 'omr.none': 'No notes found. Use a sharp scan or a straight photo of the page.', 'cmp.src.scan': 'from sheet',
     'tr.title': 'Getting the notes', 'tr.look': 'Finding the keyboard in the video', 'tr.watch': 'Watching which keys are pressed', 'tr.fromPicture': '{n} notes read from the video picture; loudness and pedal taken from the sound', 'tr.model': 'Downloading the listener (150 MB, once)', 'tr.decode': 'Reading the audio', 'tr.listen': 'Listening', 'tr.notes': 'Writing notes', 'tr.empty': 'No piano can be heard in this file',
+
+    'sheet.stage.env': 'Setting up the notation helper (once, about 200 MB)', 'sheet.stage.models': 'Downloading the notation network (once, about 200 MB)',
+    'sheet.stage.analyze': 'Finding bars, hands and key', 'sheet.stage.musescore': 'Downloading MuseScore for engraving (once, 115 MB)',
+    'sheet.stage.unpack': 'Unpacking MuseScore', 'sheet.stage.engrave': 'Engraving the score',
+    'sheet.noPython': 'Readable notation needs Python 3.9+ (python.org). Saving without the network',
+    'sheet.noAi': 'The notation network is unavailable ({e}). Saving without it',
   },
 });

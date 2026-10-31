@@ -30,7 +30,8 @@
     "asarUnpack": [
       "node_modules/ffmpeg-static/**/*",
       "node_modules/onnxruntime-node/**/*",
-      "src/main/vsthost/**/*"
+      "src/main/vsthost/**/*",
+      "src/main/notation/**/*"
     ],
     "win": {
       "target": "nsis",

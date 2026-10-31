@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('fm', {
   },
   sheet: { pdf: call('sheet:pdf') },
   omr: { recognize: call('omr:recognize'), onProgress: on('omr:progress') },
+  notation: { status: call('notation:status'), analyze: call('notation:analyze'), engrave: call('notation:engrave'), onProgress: on('notation:progress') },
   vst: { status: call('vst:status'), setup: call('vst:setup'), load: call('vst:load'), editor: call('vst:editor'), render: call('vst:render'), pick: call('vst:pick'), onProgress: on('vst:progress') },
   transcribe: { file: call('transcribe:file'), ready: call('transcribe:ready'), onProgress: on('transcribe:progress') },
   pathOf: (file) => webUtils.getPathForFile(file),

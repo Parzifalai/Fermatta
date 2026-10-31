@@ -881,23 +881,67 @@ class App {
     ];
   }
 
+  // Bars, hands, key and metre from the PM2S network (downloaded once), cached
+  // per take version. Without allowDownload it only answers when it is ready.
+  async scoreAnalysis(take, { allowDownload = false } = {}) {
+    const key = `${take.id}|${take.modified || take.created}|${take.notes.length}`;
+    if (this.scoreCache?.key === key) return this.scoreCache.r;
+    const st = await fm.notation.status();
+    if (!allowDownload && !(st.env && st.models)) return null;
+    const r = await fm.notation.analyze(take.notes.map((n) => [n.k, n.t, n.d, n.v]));
+    // 2/4 reads better as 4/4: keep every other bar line, the one where the bass falls
+    if (r.time === '2/4' && r.downbeats.length > 4) {
+      const weight = (p) => r.downbeats.filter((_, i) => i % 2 === p).reduce((a, d) => a + take.notes.filter((n) => n.k < 55 && Math.abs(n.t - d) < 0.1).length, 0);
+      const p = weight(1) > weight(0) ? 1 : 0;
+      r.downbeats = r.downbeats.filter((_, i) => i % 2 === p);
+      r.time = '4/4';
+    }
+    // the network's key can be off by a fifth: of it and its neighbours, use
+    // the one whose scale needs the fewest accidentals for these notes
+    const outside = (f) => {
+      const tonic = (((f * 7) % 12) + 12) % 12;
+      const scale = new Set([0, 2, 4, 5, 7, 9, 11].map((x) => (tonic + x) % 12));
+      return take.notes.reduce((sum, n) => sum + (scale.has(n.k % 12) ? 0 : Math.min(1, n.d + 0.1)), 0);
+    };
+    let best = r.fifths;
+    for (const f of [r.fifths - 1, r.fifths + 1]) if (f >= -6 && f <= 6 && outside(f) < outside(best) * 0.85) best = f;
+    r.fifths = best;
+    this.scoreCache = { key, r };
+    return r;
+  }
+
+  // Sheet music meant for reading: hands, bars and key from the analysis when there is one.
+  sheetXML(take, r) {
+    if (!r) return writeMusicXML(take, { bpm: take.bpm || 100, beats: take.beats, readable: true, title: take.name });
+    const tk = take.handsManual ? take : { ...take, notes: take.notes.map((n, i) => ({ ...n, h: r.hands[i] ?? n.h })) };
+    return writeMusicXML(tk, { beats: r.beats, downbeats: r.downbeats, fifths: r.fifths, time: r.time, readable: true, title: take.name });
+  }
+
   async exportSheet(kind) {
     const take = store.state.take;
     if (!take) return;
     const ext = kind === 'pdf' ? 'pdf' : 'musicxml';
     const out = await fm.dialog.save({ title: t('export.sheet'), defaultPath: `${this.exportBase()}.${ext}`, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
     if (!out) return;
-    const xml = writeMusicXML(take, { bpm: take.bpm || 100, beats: take.beats, title: take.name });
     const b = this.busy(t('sheet.making'));
-    b.set(0.4, '');
+    const off = fm.notation.onProgress((p) => b.set(p.ratio ?? 0.5, t('sheet.stage.' + p.stage)));
+    b.set(0.05, t('sheet.stage.analyze'));
     try {
-      if (kind === 'pdf') await fm.sheet.pdf(xml, out);
-      else await fm.fs.writeFile(out, new TextEncoder().encode(xml));
-      b.done();
-      toast(t('export.done', { file: out.split(/[\/]/).pop() }), { action: t('export.show'), onAction: () => fm.shell.reveal(out) });
+      let r = null;
+      try { r = await this.scoreAnalysis(take, { allowDownload: true }); } catch (e) {
+        toast(e.message.includes('PYTHON_MISSING') ? t('sheet.noPython') : t('sheet.noAi', { e: e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') }), { ms: 9000 });
+      }
+      const xml = this.sheetXML(take, r);
+      if (kind === 'pdf') {
+        // MuseScore engraves the page; the built-in renderer is the fallback
+        try { await fm.notation.engrave(xml, out); } catch { await fm.sheet.pdf(xml, out); }
+      } else await fm.fs.writeFile(out, new TextEncoder().encode(xml));
+      toast(t('export.done', { file: out.split(/[\\/]/).pop() }), { action: t('export.show'), onAction: () => fm.shell.reveal(out) });
     } catch (e) {
-      b.done();
       toast(t('export.failed', { e: e.message }), { error: true, ms: 8000 });
+    } finally {
+      off();
+      b.done();
     }
   }
 

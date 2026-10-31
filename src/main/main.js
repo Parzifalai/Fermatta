@@ -13,6 +13,7 @@ const transcriber = require('./transcribe');
 const omr = require('./omr');
 const vst = require('./vsthost');
 const videoNotes = require('./video-notes');
+const notation = require('./notation');
 
 const ROOT = path.join(__dirname, '..', '..');
 
@@ -245,6 +246,9 @@ function registerIpc() {
   });
   ipcMain.handle('omr:recognize', (_e, file) => omr.recognize(file, settings, (p) => send('omr:progress', p)));
   ipcMain.handle('transcribe:ready', () => transcriber.modelReady(settings));
+  ipcMain.handle('notation:status', () => notation.status(settings));
+  ipcMain.handle('notation:analyze', (_e, notes) => notation.analyze(settings, notes, (p) => send('notation:progress', p)));
+  ipcMain.handle('notation:engrave', (_e, xml, out) => notation.engrave(settings, xml, out, (p) => send('notation:progress', p)));
   ipcMain.handle('vst:status', () => vst.status(settings));
   ipcMain.handle('vst:setup', () => vst.setup(settings, (p) => send('vst:progress', p)));
   ipcMain.handle('vst:load', () => vst.load(settings));

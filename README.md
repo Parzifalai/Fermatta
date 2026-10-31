@@ -43,9 +43,11 @@
 - Руки распределяются автоматически, исправить можно вручную.
 - **Сравнение с нотами:** находит фальшивые, пропущенные и лишние ноты и исправляет их, сохраняя ваш темп и силу нажатия.
 - Нотный стан прямо в приложении. Экспорт в PDF, MusicXML (MuseScore) и MIDI.
+- **Читаемые ноты:** нейросеть PM2S расставляет такты, доли, руки, тональность и размер, ритм упрощается для чтения с листа, а PDF вёрстает MuseScore. Всё скачивается один раз при первом экспорте.
 
 **Открыть что угодно**
 - MIDI и MusicXML.
+- **Видео с падающими нотами:** ноты снимаются с картинки (плитки и подсветка клавиш), звук добавляет силу нажатия и педаль.
 - **MP3 или видео с игрой на пианино:** нейросеть снимает ноты по слуху, точность около 99% на чистой записи.
 - **PDF, скан или фото нот:** распознаются в ноты.
 
@@ -88,6 +90,8 @@ Fermatta records your digital piano over USB and plays it back on free concert-g
 - falling-notes videos (9:16, 16:9 and 1:1, up to 4K60);
 - an FL Studio-style piano roll with tempo detection and timing alignment;
 - comparison with a score that finds and fixes wrong notes;
+- readable sheet music: PM2S finds bars, hands, key and metre, MuseScore engraves the PDF;
+- falling-notes videos are read from the picture;
 - MusicXML, MIDI and PDF export;
 - audio and video to notes (AI transcription);
 - PDF and photo to notes (Audiveris).

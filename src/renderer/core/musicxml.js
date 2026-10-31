@@ -128,6 +128,8 @@ export function parseMusicXML(text, name = 'MusicXML') {
 // ---------- writing ----------
 const TYPES = [[16, 'whole', 0], [12, 'half', 1], [8, 'half', 0], [6, 'quarter', 1], [4, 'quarter', 0], [3, 'eighth', 1], [2, 'eighth', 0], [1, '16th', 0]];
 const NAMES = [['C', 0], ['C', 1], ['D', 0], ['D', 1], ['E', 0], ['F', 0], ['F', 1], ['G', 0], ['G', 1], ['A', 0], ['A', 1], ['B', 0]];
+// in flat keys black keys are written as flats
+const FLAT_NAMES = [['C', 0], ['D', -1], ['D', 0], ['E', -1], ['E', 0], ['F', 0], ['G', -1], ['G', 0], ['A', -1], ['A', 0], ['B', -1], ['B', 0]];
 
 // split a duration (in 16ths) into notatable pieces, respecting beats
 function pieces(start, len) {
@@ -154,26 +156,57 @@ function pieces(start, len) {
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-export function writeMusicXML(take, { bpm = 100, beats = null, title } = {}) {
+// readable: written for reading at the piano rather than as played: notes of a
+// hand are joined over gaps of up to a beat and chord ends are evened out.
+export function writeMusicXML(take, { bpm = 100, beats = null, downbeats = null, fifths = 0, time = '4/4', readable = false, title } = {}) {
   const PER_BEAT = 4; // 16ths
-  const M = 16;       // 4/4
+  let [num, den] = String(time).split('/').map(Number);
+  if (den !== 4 || !(num >= 2 && num <= 4)) { num = 4; den = 4; }
+  const M = num * PER_BEAT; // one bar
+  const GAP = readable ? PER_BEAT : 2;
+  if (beats && beats.length > 2) {
+    const d = beats.slice(1).map((b, i) => b - beats[i]).sort((a, b) => a - b);
+    bpm = 60 / d[d.length >> 1];
+  }
   // seconds → sixteenths, along the detected beats when available
-  const toTick = (t) => {
+  const rawTick = (t) => {
     if (beats && beats.length > 1) {
       let i = 0;
       while (i < beats.length - 2 && beats[i + 1] <= t) i++;
       const f = (t - beats[i]) / (beats[i + 1] - beats[i]);
-      return Math.round((i + f) * PER_BEAT);
+      return (i + f) * PER_BEAT;
     }
-    return Math.round((t * bpm / 60) * PER_BEAT);
+    return (t * bpm / 60) * PER_BEAT;
   };
+  const toTick = (t) => Math.round(rawTick(t));
   const shift = take.notes.length ? Math.min(...take.notes.map((n) => toTick(n.t))) : 0;
-  const startTick = shift - (((shift % PER_BEAT) + PER_BEAT) % PER_BEAT); // the first note's beat opens bar 1
+  let startTick = shift - (((shift % PER_BEAT) + PER_BEAT) % PER_BEAT); // the first note's beat opens bar 1
+  // with known bar lines, bar 1 starts on a downbeat (a pickup bar is filled with rests)
+  if (downbeats && downbeats.length) {
+    const d0 = toTick(downbeats[0]);
+    startTick = d0 - Math.ceil((d0 - shift) / M) * M;
+  }
   const staves = [[], []];
   for (const n of take.notes) {
     const s = toTick(n.t) - startTick;
     const e = Math.max(s + 1, toTick(n.t + n.d) - startTick);
-    staves[(n.h ?? 1) === 0 ? 1 : 0].push({ s, e, k: n.k });
+    staves[(n.h ?? 1) === 0 ? 1 : 0].push({ s, e, k: n.k, raw: rawTick(n.t) - startTick, rawEnd: rawTick(n.t + n.d) - startTick });
+  }
+  // readable: a beat whose notes all sit near eighth positions is written in
+  // eighths, not sixteenths with dots and rests
+  if (readable) {
+    for (const notes of staves) {
+      const byBeat = new Map();
+      for (const n of notes) { const b = Math.floor(n.s / PER_BEAT); if (!byBeat.has(b)) byBeat.set(b, []); byBeat.get(b).push(n); }
+      for (const group of byBeat.values()) {
+        if (group.every((n) => Math.abs(n.raw - Math.round(n.raw / 2) * 2) < 0.75)) {
+          for (const n of group) {
+            n.s = Math.round(n.raw / 2) * 2;
+            n.e = Math.max(n.s + 2, Math.round(n.rawEnd / 2) * 2);
+          }
+        }
+      }
+    }
   }
   const total = Math.max(M, ...staves.flat().map((n) => n.e));
   const measures = Math.ceil(total / M);
@@ -192,7 +225,7 @@ export function writeMusicXML(take, { bpm = 100, beats = null, title } = {}) {
       group.sort((a, b) => b.e - a.e);
       let anchor = group[0].e;
       for (const n of group) {
-        if (anchor - n.e <= 2) n.e = anchor; else anchor = n.e;
+        if (anchor - n.e <= GAP) n.e = anchor; else anchor = n.e;
         const key = `${n.s}:${n.e}`;
         if (!ev.has(key)) ev.set(key, { s: n.s, e: n.e, keys: [] });
         ev.get(key).keys.push(n.k);
@@ -206,7 +239,7 @@ export function writeMusicXML(take, { bpm = 100, beats = null, title } = {}) {
       if (v && v.end > e.s) v.events[v.events.length - 1].e = e.s;
       if (!v) { v = { end: 0, events: [] }; voices.push(v); }
       const prev = v.events[v.events.length - 1];
-      if (prev && e.s - prev.e > 0 && e.s - prev.e <= 2) prev.e = e.s;
+      if (prev && e.s - prev.e > 0 && e.s - prev.e <= GAP) prev.e = e.s;
       v.events.push(e);
       v.end = e.e;
     }
@@ -219,8 +252,8 @@ export function writeMusicXML(take, { bpm = 100, beats = null, title } = {}) {
   const staffVoices = staves.map(voicesOf);
 
   const pitchXml = (k) => {
-    const [step, alter] = NAMES[k % 12];
-    return `<pitch><step>${step}</step>${alter ? '<alter>1</alter>' : ''}<octave>${Math.floor(k / 12) - 1}</octave></pitch>`;
+    const [step, alter] = (fifths < 0 ? FLAT_NAMES : NAMES)[k % 12];
+    return `<pitch><step>${step}</step>${alter ? `<alter>${alter}</alter>` : ''}<octave>${Math.floor(k / 12) - 1}</octave></pitch>`;
   };
   const noteXml = ({ rest, keys, dur, voice, staff, tieStart, tieStop, hidden }) => {
     const [, type, dot] = TYPES.find((x) => x[0] === dur);
@@ -231,7 +264,7 @@ export function writeMusicXML(take, { bpm = 100, beats = null, title } = {}) {
   };
 
   // pedal marks in the bass staff
-  const pedalAt = [];
+  let pedalAt = [];
   let down = false;
   for (const p of take.pedal || []) {
     const isDown = p.v >= 64;
@@ -239,13 +272,22 @@ export function writeMusicXML(take, { bpm = 100, beats = null, title } = {}) {
     down = isDown;
     pedalAt.push({ tick: Math.max(0, toTick(p.t) - startTick), type: isDown ? 'start' : 'stop' });
   }
+  // a quick lift and press again is one pedal change: a notch in the pedal line
+  if (readable) {
+    const merged = [];
+    for (let i = 0; i < pedalAt.length; i++) {
+      const p = pedalAt[i], q = pedalAt[i + 1];
+      if (p.type === 'stop' && q && q.type === 'start' && q.tick - p.tick <= 2) { merged.push({ tick: q.tick, type: 'change' }); i++; } else merged.push(p);
+    }
+    pedalAt = merged;
+  }
 
   let body = '';
   for (let m = 0; m < measures; m++) {
     const m0 = m * M, m1 = m0 + M;
     let x = `<measure number="${m + 1}">`;
     if (m === 0) {
-      x += '<attributes><divisions>4</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><staves>2</staves>' +
+      x += `<attributes><divisions>4</divisions><key><fifths>${fifths}</fifths></key><time><beats>${num}</beats><beat-type>${den}</beat-type></time><staves>2</staves>` +
         '<clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef></attributes>' +
         `<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${Math.round(bpm)}</per-minute></metronome></direction-type><staff>1</staff><sound tempo="${Math.round(bpm)}"/></direction>`;
     }

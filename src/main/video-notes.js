@@ -227,18 +227,49 @@ async function readVideo(file, progress = () => {}) {
   // a single tile's width is the most common run width; wider runs are neighbouring tiles side by side
   const keyXs = kb.keys.map((k) => k.x);
   const nearest = (x) => { let bi = 0; for (let j = 1; j < keyXs.length; j++) if (Math.abs(keyXs[j] - x) < Math.abs(keyXs[bi] - x)) bi = j; return bi; };
-  // white-key tiles are usually wider than black-key ones: the widest single tile is a white one
-  const wWidths = frameRuns.flat().filter((r) => !kb.keys[nearest((r[0] + r[1]) / 2)].black).map((r) => r[1] - r[0] + 1);
-  const tileW = Math.max(ww * 0.5, median(wWidths));
+  // single tiles are as wide as their key's tiles: learn both widths
+  const single = (black) => frameRuns.flat().filter((r) => kb.keys[nearest((r[0] + r[1]) / 2)].black === black).map((r) => r[1] - r[0] + 1);
+  const wW = Math.max(ww * 0.4, median(single(false)));
+  const bw = single(true);
+  const wB = bw.length ? Math.min(wW, Math.max(ww * 0.3, median(bw.filter((x) => x <= wW)))) : wW * 0.75;
+  const tw = (ki) => (kb.keys[ki].black ? wB : wW);
+  // which keys explain a run best: one tile, or two or three side by side
+  // (adjacent black keys' tiles often touch and merge into one run)
+  const explain = (x0, x1) => {
+    const cand = [];
+    keyXs.forEach((x, ki) => { if (x > x0 - wW && x < x1 + wW) cand.push(ki); });
+    const fit = (set) => {
+      const L = keyXs[set[0]] - tw(set[0]) / 2, R = keyXs[set[set.length - 1]] + tw(set[set.length - 1]) / 2;
+      for (let j = 1; j < set.length; j++) {
+        // neighbouring tiles must not overlap much
+        if (keyXs[set[j]] - keyXs[set[j - 1]] < (tw(set[j]) + tw(set[j - 1])) / 2 * 0.75) return Infinity;
+      }
+      return Math.abs(x0 - L) + Math.abs(x1 - R) + (set.length - 1) * ww * 0.15;
+    };
+    let best = null, bestErr = Infinity;
+    for (let i = 0; i < cand.length; i++) {
+      const e1 = fit([cand[i]]);
+      if (e1 < bestErr) { bestErr = e1; best = [cand[i]]; }
+      for (let j = i + 1; j < cand.length; j++) {
+        const e2 = fit([cand[i], cand[j]]);
+        if (e2 < bestErr) { bestErr = e2; best = [cand[i], cand[j]]; }
+        for (let k = j + 1; k < cand.length; k++) {
+          const e3 = fit([cand[i], cand[j], cand[k]]);
+          if (e3 < bestErr) { bestErr = e3; best = [cand[i], cand[j], cand[k]]; }
+        }
+      }
+    }
+    return best || [nearest((x0 + x1) / 2)];
+  };
   const tileOn = kb.keys.map(() => null);
   frameRuns.forEach((runs, fi) => {
     const t = fi / fps;
     const now = new Map();
     for (const [x0, x1, c] of runs) {
-      const w = x1 - x0 + 1;
-      const n = w > tileW * 1.6 ? Math.max(2, Math.min(8, Math.round(w / (tileW * 0.95)))) : 1;
-      const part = (x1 - x0 + 1) / n;
-      for (let j = 0; j < n; j++) now.set(nearest(x0 + part * (j + 0.5)), c);
+      // very wide runs (big clusters): cut into tile-sized pieces first
+      const pieces = Math.max(1, Math.round((x1 - x0 + 1) / (wW * 3)));
+      const part = (x1 - x0 + 1) / pieces;
+      for (let j = 0; j < pieces; j++) for (const ki of explain(x0 + part * j, x0 + part * (j + 1) - 1)) now.set(ki, c);
     }
     kb.keys.forEach((k, ki) => {
       const cur = tileOn[ki];
@@ -276,12 +307,27 @@ async function readVideo(file, progress = () => {}) {
   const useTiles = support >= Math.max(10, keyNotes.length * 0.5);
   if (!useTiles) return { notes: keyNotes, keys: kb.keys.length, blacks: kb.blacks, fps, from: 'keys' };
   // tiles give exact lengths and separate repeated notes; shift them to the moment they reach the keys
-  const notes = burst(tiles, (tl) => tl.a)
-    .filter((tl) => tl.b - tl.a > 1.6 / fps)
-    .map((tl) => ({ k: tl.k, t: tl.a + delay, d: tl.b - tl.a, c: tl.c, v: 80 }))
-    .filter((n) => n.t < info.duration + 0.5)
-    .sort((x, y) => x.t - y.t || x.k - y.k);
-  return { notes, keys: kb.keys.length, blacks: kb.blacks, fps, from: 'tiles', delay, support, keyNotes: keyNotes.length };
+  const all = burst(tiles, (tl) => tl.a).map((tl) => ({ k: tl.k, t: tl.a + delay, d: tl.b - tl.a, c: tl.c, v: 80 }));
+  // keys light up a little after their tile reaches them (white keys light from
+  // the top, the sample point is low): learn that lag for black and white keys
+  const isB = (k) => isBlack(k);
+  const lag = { true: [], false: [] };
+  for (const n of keyNotes) {
+    const m = all.find((x) => x.k === n.k && Math.abs(n.t - x.t) < 0.4 && x.d > 1.6 / fps);
+    if (m) lag[isB(n.k)].push(n.t - m.t);
+  }
+  const lagOf = (k) => (lag[isB(k)].length > 5 ? median(lag[isB(k)]) : 0);
+  const litAt = (k, t) => keyNotes.some((n) => n.k === k && Math.abs(n.t - lagOf(k) - t) < 0.3);
+  // tiny tiles (grace notes, very short notes) cross the row in a single frame:
+  // keep them when the key really lights up
+  const notes = all.filter((n) => n.d > 1.6 / fps || litAt(n.k, n.t)).map((n) => ({ ...n, d: Math.max(n.d, 0.1) }));
+  // a key that lit up with no tile at all: add it from the key
+  for (const n of keyNotes) {
+    const t = n.t - lagOf(n.k);
+    if (!notes.some((x) => x.k === n.k && Math.abs(x.t - t) < 0.3)) notes.push({ k: n.k, t, d: Math.max(0.1, n.d), c: n.c, v: 80 });
+  }
+  notes.splice(0, notes.length, ...notes.filter((n) => n.t < info.duration + 0.5).sort((x, y) => x.t - y.t || x.k - y.k));
+  return { notes, keys: kb.keys.length, blacks: kb.blacks, fps, from: 'tiles', delay, support, keyNotes: keyNotes.length, keyList: keyNotes };
 }
 
 // Hue in degrees, for telling hand colours apart.
@@ -364,7 +410,13 @@ function alignPedal(pedal, notes, shift = 0) {
   const ev = pedal.map((p) => ({ t: Math.max(0, p.t - shift), v: p.v })).sort((x, y) => x.t - y.t);
   for (let i = 0; i < ev.length; i++) {
     const p = ev[i];
-    if (p.v >= 64 && !down) { out.push({ t: p.t, v: 127 }); down = true; continue; }
+    if (p.v >= 64 && !down) {
+      // pressed a little after the phrase began: press it with the first chord instead
+      const early = onsets.filter((o) => o < p.t && o > p.t - 0.6 && (!out.length || o > out[out.length - 1].t + 0.05));
+      out.push({ t: early.length ? early[0] + 0.04 : p.t, v: 127 });
+      down = true;
+      continue;
+    }
     if (p.v < 64 && down) {
       const next = ev.slice(i + 1).find((q) => q.v >= 64);
       // a quick change near a chord: snap it to that chord

@@ -5,7 +5,6 @@ import { store } from '../store.js';
 import { isBlack, keyName } from '../core/keys.js';
 import { trackBeats, steadyBeats, snapTime, quantize } from '../core/tempo.js';
 import { assignHands } from '../core/hands.js';
-import { writeMusicXML } from '../core/musicxml.js';
 import { toast } from './toast.js';
 import { alignToScore } from '../core/score-align.js';
 
@@ -725,11 +724,14 @@ export function mountNotesPage(root, app) {
     const tk = take();
     sheet.replaceChildren();
     if (!tk) return;
-    const xml = writeMusicXML(tk, { bpm: tk.bpm || 100, beats: tk.beats, title: tk.name });
+    // readable notation when the score analysis is available (it is set up by the first PDF export)
+    let r = null;
+    try { r = await app.scoreAnalysis(tk); } catch { r = null; }
+    const xml = app.sheetXML(tk, r);
     const OSMD = await loadOsmd();
     const host = h('div', { class: 'sheet-host' });
     sheet.append(host);
-    osmd = new OSMD.OpenSheetMusicDisplay(host, { autoResize: true, backend: 'svg', drawTitle: true, drawingParameters: 'default' });
+    osmd = new OSMD.OpenSheetMusicDisplay(host, { autoResize: true, backend: 'svg', drawTitle: true, drawingParameters: 'default', autoBeam: true });
     await osmd.load(xml);
     osmd.render();
   }

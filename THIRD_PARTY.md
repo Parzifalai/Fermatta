@@ -29,3 +29,12 @@ https://github.com/spotify/pedalboard — GPL-3.0. Downloaded on first use into 
 
 ## mido
 https://github.com/mido/mido — MIT. Downloaded on first use with Pedalboard.
+
+## PM2S
+https://github.com/cheriell/PM2S — MIT. Source vendored in src/main/notation/pm2s (with its LICENSE); model weights are downloaded from Zenodo (record 10520196) on first use.
+
+## PyTorch
+https://pytorch.org — BSD-style licence. Installed from the official CPU wheel index into the notation helper environment on first use (not bundled).
+
+## MuseScore Studio
+https://musescore.org — GPL-3.0. The official installer is downloaded from GitHub on first PDF export and unpacked (not installed, not bundled); it is run as a separate program.
